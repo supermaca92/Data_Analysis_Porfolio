@@ -1,5 +1,7 @@
 # HOSPITAL DATA PROJECT
 
+DATE --> September 2023
+
 ## Objective
 
 Patient data can provide an insight into how well a hospital is run. This data can be then used to track hospital performance and levels of care, providing insight into areas of improvement.
@@ -22,9 +24,11 @@ The following tasks were performed:
 2. Finding the best Hospital in a state
 3. Ranking the hospitals by outcome in a state
 4. Ranking hospitals in all states
+
 ## Guidelines to use the script:
 
-
+The script provides annotations for the development of yout own functions based on the concepts above. 
 
 ## Conclusion of project
 
+All functions work smoothly and the content of the functions can be altered to provide a different angle to the analysis of this data.

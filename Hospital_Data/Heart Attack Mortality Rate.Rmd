@@ -1,0 +1,88 @@
+---
+title: "30-day Mortality Rate for Heart Attack"
+author: "Macarena L. Fernandez Carro"
+date: "2023-09-26"
+output: html_document
+---
+
+```{R}
+
+### Load libraries
+
+library(ggplot2)
+library(readr)
+library(dplyr)
+
+```
+
+```{R}
+
+### Read the file for outcomes of care measures
+
+outcome <- read.csv("outcome-of-care-measures.csv", colClasses = "character")
+head(outcome)
+
+```
+
+```{R}
+### information about the file
+
+ncol(outcome)
+names(outcome)
+
+```
+
+```{R}
+
+### simple histogram of the 30-day death rates from Heart Attack (Column 11)
+###NAs are OK at this stage
+
+outcome[, 11] <- as.numeric(outcome[, 11])
+hist(outcome[, 11])
+
+```
+
+```{R}
+### Let's make it pretty --> BASIC FUNCTION
+  ### main = title
+  ### xlab = x axis name
+  ### xlim = range on the x axis
+  ### ylim = range on the y axis
+  ### col = fill of the bar
+  ### border = border of the bar
+
+hist(outcome[, 11],
+     main = "Heart Attack 30-Day Mortality Rate",
+     xlab = "Deaths",
+     xlim = c(5,25),
+     ylim = c(0,800),
+     col = "pink",
+     border ="purple")
+
+```
+
+```{R}
+### let's make it pretty --> WITH GGPLOT2
+
+### Change name of column to the x axis name
+
+HA <- data.frame(outcome[,11])
+colnames(HA)[1] <- "Deaths"
+
+### Run ggplot2
+  ### bins = numer of columns
+  ### colour = border of the bin
+  ### fill = fill of the bin
+  ### labs = title and axis names
+
+g <- ggplot(HA, aes = (x = Deaths)) 
+g + 
+  geom_histogram(HA, 
+                   mapping = aes(x = Deaths),
+                   bins = 39,
+                   colour = "purple",
+                   fill = "pink") +
+  labs(title = "Heart Attack 30 Day Mortality Rate", x = "Deaths", y = "Frequency")
+
+
+```

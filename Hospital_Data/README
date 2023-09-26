@@ -1,1 +1,30 @@
+# HOSPITAL DATA PROJECT
+
+## Objective
+
+Patient data can provide an insight into how well a hospital is run. This data can be then used to track hospital performance and levels of care, providing insight into areas of improvement.
+
+## About the dataset
+
+The datasets for this project were obtained from the Hospital Compare web site (http://hospitalcompare.hhs.gov) run by the U.S. Department of Health and Human Services. 
+
+The purpose of the web site is to provide data and information about the quality of care at over 4,000 Medicare-certified hospitals in the U.S. This dataset essentially covers all major U.S. hospitals. This dataset is used for a variety of purposes, including determining whether hospitals should be fined for not providing high quality care to patients (see http://goo.gl/jAXFX for some background on this particular topic).
+The hospitals Compare website contains a lot of data and we will only look at a small subset for this project. The files used for this project are:
+- outcomes-of-care-measures.csv --> contains information about 30-days mortality and readmissions rates for heart attack, heart failure and pneumonia for over 4,000 hospitals
+- hospitals-data.csv --> contains information about each hospital 
+- hospital_revised_flatfiles.pdf --> descriptions of variables in each file (i.e. the code book)
+
+## Tasks
+
+The following tasks were performed:
+
+1. Plot the 30-day mortality rates for Heart Attack
+2. Finding the best Hospital in a state
+3. Ranking the hospitals by outcome in a state
+4. Ranking hospitals in all states
+## Guidelines to use the script:
+
+
+
+## Conclusion of project
 

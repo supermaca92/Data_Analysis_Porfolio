@@ -1,0 +1,1619 @@
+---
+title: "Bellabit marketing analysis"
+author: "Macarena L. Fernandez Carro"
+date: "2023-12-31"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+# PACKAGES
+
+```{R}
+
+## SET PACKAGES AND WORKING DIRECTORY
+
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(skimr)
+library(lubridate)
+library(egg)
+library(forcats)
+library(purrr)
+library(readr)
+library(stringr)
+library(tibble)
+library(here)
+library(janitor)
+library(viridis)
+library(corrplot)
+library(cowplot)
+library(scales)
+library(RColorBrewer)
+library(waffle)
+library(reshape)
+library(reshape2)
+library(ggrepel)
+library(ggpubr)
+
+```
+
+# LOAD DATA
+
+```{R}
+
+## 1. Daily Data
+
+daily_activity <- read.csv("dailyActivity_merged.csv")
+daily_calories <- read.csv("dailyCalories_merged.csv")
+daily_intensities <- read.csv("dailyIntensities_merged.csv")
+daily_steps <- read.csv("dailySteps_merged.csv")
+
+
+## 2. Hourly Data
+
+hourly_calories <- read.csv("hourlyCalories_merged.csv")
+hourly_intensities <- read.csv("hourlyIntensities_merged.csv")
+hourly_steps <- read.csv("hourlySteps_merged.csv")
+
+## 3. Minute Data
+
+minute_calories_narrow <- read.csv("minuteCaloriesNarrow_merged.csv")
+minute_calories_wide <- read.csv("minuteCaloriesWide_merged.csv")
+minute_intensities_narrow <- read.csv("minuteIntensitiesNarrow_merged.csv")
+minute_intensities_wide <- read.csv("minuteIntensitiesWide_merged.csv")
+minute_METs_narrow <- read.csv("minuteMETsNarrow_merged.csv")
+minute_sleep <- read.csv("minuteSleep_merged.csv")
+minute_steps_narrow <- read.csv("minuteStepsNarrow_merged.csv")
+minute_steps_wide <- read.csv("minuteStepsWide_merged.csv")
+
+## 4. OTHER
+
+heartrate_seconds <- read.csv("heartrate_seconds_merged.csv")
+sleep_day <- read.csv("sleepDay_merged.csv")
+weight <- read.csv("weightLogInfo_merged.csv")
+
+```
+
+ ##CHECK FOR DUPLICATES AND N/A VALUES
+
+```{R}
+
+## 1. Finding N/A values
+
+any(is.na(daily_activity))
+any(is.na(weight))
+any(is.na(minute_METs_narrow))
+any(is.na(sleep_day))
+any(is.na(daily_calories))
+any(is.na(heartrate_seconds))
+any(is.na(minute_sleep))
+any(is.na(minute_intensities_narrow))
+any(is.na(minute_intensities_wide))
+any(is.na(minute_calories_wide))
+any(is.na(minute_calories_narrow))
+any(is.na(hourly_intensities))
+any(is.na(daily_intensities))
+any(is.na(daily_steps))
+any(is.na(hourly_steps))
+any(is.na(minute_steps_wide))
+any(is.na(minute_steps_narrow))
+
+### weight does have N/A --> that column will be removed from analysis ###
+
+## 2. Check in the Weights data were the N/A values are
+
+any(is.na(weight$Date))
+any(is.na(weight$WeightKg))
+any(is.na(weight$WeightPounds))
+any(is.na(weight$Fat))
+any(is.na(weight$BMI))
+any(is.na(weight$IsManualReport))
+any(is.na(weight$LogId))
+any(is.na(weight$Id))
+
+### The column with N/a Values in weight is FAT. This column will not be used for analysis and there is no need to remove the NA values ###
+
+## 3. Check for duplicates
+
+sum(duplicated(daily_activity))
+sum(duplicated(weight))
+sum(duplicated(heartrate_seconds))
+sum(duplicated(daily_calories))
+sum(duplicated(hourly_calories))
+sum(duplicated(minute_calories_narrow))
+sum(duplicated(minute_calories_wide))
+sum(duplicated(daily_intensities))
+sum(duplicated(hourly_intensities))
+sum(duplicated(minute_intensities_narrow))
+sum(duplicated(minute_intensities_wide))
+sum(duplicated(sleep_day))
+sum(duplicated(minute_METs_narrow))
+sum(duplicated(minute_steps_narrow))
+sum(duplicated(minute_steps_wide))
+sum(duplicated(hourly_steps))
+sum(duplicated(daily_steps))
+sum(duplicated(minute_sleep))
+
+## 4. Remove duplicates and check the data
+
+sleep_day_distinct <- sleep_day %>% distinct()
+minute_sleep_distinct <- minute_sleep %>% distinct()
+
+sum(duplicated(sleep_day_distinct))
+sum(duplicated(minute_sleep_distinct))
+
+```
+# TRANSFORMING DATA
+
+```{R}
+
+## 1. Removing columns that will not be used for analysis
+
+daily_activity_transformed <- daily_activity %>% 
+  select(-c(TrackerDistance, LoggedActivitiesDistance))
+head(daily_activity_transformed)
+glimpse(daily_activity_transformed)
+
+sleep_day_transformed <- sleep_day_distinct %>% select(-TotalSleepRecords)
+head(sleep_day_transformed)
+glimpse(sleep_day_transformed)
+
+weight_transformed <- weight %>% select(-c(Fat,IsManualReport,LogId,WeightKg,WeightPounds))
+head(weight_transformed)
+
+## 2. Transforming Daily Activity data
+
+daily_activity_updated <- daily_activity_transformed %>% filter(
+  VeryActiveMinutes >0 | FairlyActiveMinutes > 0 | LightlyActiveMinutes > 0 | 
+    VeryActiveDistance > 0 | ModeratelyActiveDistance > 0 | LightActiveDistance > 0
+  ) %>%
+  mutate(
+    TotalActiveMinutes = VeryActiveMinutes + FairlyActiveMinutes + LightlyActiveMinutes,
+    TotalActiveDistance = VeryActiveDistance + ModeratelyActiveDistance + LightActiveDistance
+  )
+
+daily_activity_summary_average <- daily_activity_updated %>%
+  select(-ActivityDate) %>%
+  group_by(Id) %>%
+  filter_all(any_vars(. != 0)) %>%
+  summarise(
+    average_distance = mean(TotalDistance),
+    average_active_distance = mean(TotalActiveDistance),
+    average_sedentary_distance = mean(SedentaryActiveDistance),
+    average_active_minutes = mean(TotalActiveMinutes),
+    average_sedentary_minutes = mean(SedentaryMinutes),
+    average_calories = mean(Calories),
+    average_steps = mean(TotalSteps),
+    .groups = "drop"
+  ) 
+
+head(daily_activity_summary_average)
+
+
+```
+
+## Date and Time Formatting
+
+Organise the data and format all the dates and times accordingly so that we can refer and combine tables down the line
+
+Time format  = hh:mm:ss
+Date format = dd/mm/YYYY
+
+```{R}
+
+## 1. Heart Rate data 
+
+datetime_heartrate <- mdy_hms(heartrate_seconds$Time)
+
+heartrate_date_time <- heartrate_seconds %>%
+  mutate(heartrateDate = as.Date(datetime_heartrate),
+         heartrateTime = format(datetime_heartrate, format = "%H:%M:%S")) %>% 
+  select(-Time)
+
+head(heartrate_date_time)
+view(heartrate_date_time)
+
+heartrate_minute <- heartrate_date_time %>%
+  mutate(heartrateTime = as.POSIXct(heartrateTime , format = '%H:%M:%S'),
+         minute_floor = format(heartrateTime, format = '%H:%M:%S')) %>%
+  group_by(Id, heartrateDate, minute_floor) %>%
+  summarise(mean_heartrate = mean(Value)) %>%
+  ungroup()
+
+head(heartrate_minute)
+
+heartrate_day <- heartrate_date_time %>%
+  group_by(Id, heartrateDate) %>%
+  summarise(mean_heartrate_day = mean(Value),
+            max_heartrate_day = max(Value),
+            min_heartrate_day = min(Value),
+            ) %>%
+  ungroup()
+
+head(heartrate_day)
+
+## 2. Intensity data
+
+### Convert ActivityHour to datetime ###
+
+datetime <- mdy_hms(hourly_intensities$ActivityHour)
+
+intensity_datetime_separated <- hourly_intensities %>%
+  mutate(intensityDate = as.Date(datetime),
+         intensityTime = format(datetime, format = '%H:%M:%S'))
+
+head(intensity_datetime_separated)
+
+## 3. METs data
+
+datetime_METs <- mdy_hms(minute_METs_narrow$ActivityMinute)
+
+MET_datetime_minute <- minute_METs_narrow %>%
+  mutate(METDate = as.Date(datetime_METs),
+         METTime = format(datetime_METs, format = '%H:%M:%S')) %>%
+  select(-ActivityMinute)
+
+head(MET_datetime_minute)
+
+## 4. Minute steps (narrow) data
+
+datetime_steps <- mdy_hms(minute_steps_narrow$ActivityMinute)
+
+steps_datetime_minute <- minute_steps_narrow %>%
+  mutate(stepsDate = as.Date(datetime_steps),
+         stepsTime = format(datetime_steps, format = '%H:%M:%S')) %>%
+  select(-ActivityMinute)
+
+head(steps_datetime_minute)
+
+## 5. Minute sleep data
+
+minute_sleep_formatted <- minute_sleep_distinct %>%
+  mutate(datetime=mdy_hms(date),
+         MinuteSleepDate = as.Date(datetime),
+         MinuteSleepTime = format(datetime, format = '%H:%M:%S')) %>%
+  select(-c(date,datetime))
+
+glimpse(minute_sleep_formatted)
+head(minute_sleep_formatted)
+
+## 6. Minute calorie (narrow) data
+
+minute_calories_formatted <- minute_calories_narrow %>%
+  mutate(datetime=mdy_hms(ActivityMinute),
+         MinuteCaloriesDate = as.Date(datetime),
+         MinuteCaloriesTime = format(datetime, format = "%H:%M:%S")) %>%
+  select(-c(ActivityMinute, datetime))
+  
+glimpse(minute_calories_formatted)
+head(minute_calories_formatted)
+         
+## 7. Intensity data
+
+minute_intensities_formatted <- minute_intensities_narrow %>%
+  mutate(datetime=mdy_hms(ActivityMinute),
+         MinuteIntensitiesDate = as.Date(datetime),
+         MinuteIntensitiesTime = format(datetime, format = "%H:%M:%S")) %>%
+  select(-c(ActivityMinute,datetime))
+
+glimpse(minute_intensities_formatted)
+head(minute_calories_formatted)
+
+```
+## Data Categorisation
+
+```{R}
+  
+  ## 1. Categorising intensities
+  
+  minute_intensity_level <- minute_intensities_narrow %>%
+    filter(ActivityMinute != 0 & !is.na(ActivityMinute)) %>%
+    mutate(ActivityMinute = mdy_hms(ActivityMinute),
+           minuteIntensityDate = as.Date(ActivityMinute),
+           minuteIntensityTime = format(ActivityMinute, format = '%H:%M:%S'),
+           IntensityLevel = case_when(
+             Intensity == 0 ~ "resting",
+             Intensity == 1 ~ "lightly active",
+             Intensity == 2 ~ "moderaterly active",
+             Intensity == 3 ~ "very active",
+             TRUE ~ NA_character_
+           )) %>%
+  select(-c(ActivityMinute))
+
+head(minute_intensity_level)
+
+## 2. Sleep minute data
+
+minute_sleep_values <- minute_sleep_distinct %>%
+  filter(date != 0 & !is.na(date)) %>%
+filter(value != 0) %>%
+  mutate(ActivityMinute = mdy_hms(date),
+         minuteSleepDate = as.Date(ActivityMinute),
+         minuteSleepTime = format(ActivityMinute, format = "%H:%M:%S"),
+         SleepValue = case_when(
+           value == 1 ~ "value 1 sleep",
+           value == 2 ~ "value 2 sleep",
+           value == 3 ~ "value 3 sleep",
+           TRUE ~ NA_character_
+         )) %>%
+select(-c(date,ActivityMinute,logId))
+  
+  head(minute_sleep_values)
+  
+```
+
+# ANALYSIS AND VISUALIZATION
+
+## Smart Device Usage
+
+We are trying to answer the following questions:
+
+1. Which features are perfoming well among users
+2. Which features customers are enagging more with
+3. What time are customers more likely to exercise 
+4. At what time of the day consumers are more enganged with certain activities
+
+Goal --> understand behaviours, preferences and utilization patterns
+
+```{R}
+
+## 1. Daily activity counts
+
+record_daily_activity_counts <- daily_activity_transformed %>%
+  group_by(Id) %>%
+  summarize(DailyActivityCount = n(),) %>%
+ungroup()
+
+head(record_daily_activity_counts)
+
+## 2. Daily sleep day counts
+
+record_sleep_day_counts <- sleep_day_transformed %>%
+  group_by(Id) %>%
+  summarize(SleepDayCount = n(),) %>%
+ungroup()
+
+head(record_sleep_day_counts)
+
+## 3. Heartrate second counts
+
+record_heartrate_seconds_counts <- heartrate_seconds %>%
+  mutate(LoggedDate = as.Date(Time, format = '%d/%m/%Y')) %>%
+  distinct(Id, LoggedDate, .keep_all = TRUE) %>%
+  group_by(Id) %>%
+  summarize(HeartrateSecondsCount = n(),) %>%
+ungroup()
+
+head(record_heartrate_seconds_counts)
+
+## 4. Weight counts
+
+record_weight_counts <- weight_transformed %>% 
+mutate(LogDate = as.Date(Date, format = "%d/%m/%Y")) %>% 
+ distinct(Id, LogDate, .keep_all = TRUE) %>%
+  group_by(Id) %>%
+  summarize(WeightLogCount=n(),) %>%
+ungroup()
+
+head(record_weight_counts)
+
+## 5. METs counts
+
+record_minute_METs_counts <- minute_METs_narrow %>%
+  mutate(LogDate = as.Date(ActivityMinute, format = '%d/%m/%Y')) %>%
+  distinct(Id, LogDate, .keep_all = TRUE) %>%
+  group_by(Id) %>%
+  summarise(MetsCount = n(),) %>%
+ungroup()
+
+head(record_minute_METs_counts)
+
+## 6. Create a merged list
+
+records_list <- list(record_daily_activity_counts, record_sleep_day_counts, record_heartrate_seconds_counts, record_weight_counts, record_minute_METs_counts)
+
+records_merged <- reduce(records_list, full_join, by = 'Id')
+
+glimpse(records_merged)
+head(records_merged)
+
+```
+
+### Heatmap
+
+Provides a concise overview of user activites, considering the total number of days each user enagged with the features. 
+
+- Some users are more proactive in utilizing features than others
+- logging weight is the least popular feautre
+- Sleep and HR are the following features with least engagement
+- The primary focus seems to revolve around monitoring other activities like intense activity, calories burned, sedentary activities... 
+
+```{R}
+
+## Melting data for plotting
+
+melted_data <- reshape2::melt(records_merged, id.vars = 'Id')
+
+## Create a heatmap
+
+ggplot(melted_data, aes(x = as.factor(Id), y = variable, fill = value)) + 
+  geom_tile() +
+  scale_fill_distiller(palette = "RdBu") +
+  labs(title = "User Activity: Number of Logged Days per ID", x = "User Id", y = "Number of days") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  coord_fixed()
+
+```
+
+## Identifying popular features
+
+```{R}
+
+## 1. Counting the number of users
+
+num_unique_daily_activity_ids <- length(unique(daily_activity_transformed$Id))
+num_unique_weight_log_ids <- length(unique(weight_transformed$Id))
+num_unique_minute_METs_ids <- length(unique(minute_METs_narrow$Id))
+num_unique_sleep_day_ids <- length(unique(sleep_day_transformed$Id))
+num_unique_heartrate_seconds_ids <- length(unique(heartrate_seconds$Id))
+
+## 2. Creating a data frame with the counts
+
+records_data <- data.frame(
+  Feature = c('Daily Activity', 'Weight Log', 'Minute METs', 'Sleep Day', ' Heart Rate Seconds'),
+  Count = c(num_unique_daily_activity_ids, num_unique_weight_log_ids, num_unique_minute_METs_ids, num_unique_sleep_day_ids, num_unique_heartrate_seconds_ids)
+)
+  
+  ## 3. Calculating percentages based on the total number of users (33)
+  
+records_data$Percentage <- (records_data$Count / 33) * 100
+
+head(records_data)
+
+```
+
+### Bar Chart 
+
+```{R}
+ggplot(records_data, aes(x = Feature, 
+                        y = Percentage, 
+                        fill = Feature, )) +
+  geom_bar(stat = "identity", 
+           position = "dodge", 
+           width = 0.8,
+           color = "black") +
+  scale_y_continuous(breaks = seq(0,110, 10),
+                     limits = c(0,110),
+                     expand = expansion(mult = 0)) +
+  scale_x_discrete() +
+  scale_fill_brewer(palette = "Set1") +
+  labs(
+    title = "Percentage of Users Using Different Features",
+       x = "Features",
+       y = "Percentage"
+  ) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+```
+
+## User Engagement
+
+```{R}
+
+## 1. Unique Ids using each feature
+
+id_daily_activity <- unique(daily_activity_transformed$Id)
+id_weight_log <- unique(weight_transformed$Id)
+id_minute_METs <- unique(minute_METs_narrow$Id)
+id_sleep_day <- unique(sleep_day_transformed$Id)
+id_heartrate_seconds <- unique(heartrate_seconds$Id)
+
+## 2. Find Common Ids
+
+common_ids <- Reduce(intersect, list(id_daily_activity, id_weight_log, id_minute_METs, id_sleep_day, id_heartrate_seconds))
+
+
+## 3. Find common Ids for each combination of at least 4 features
+
+common_ids_sleep_heartrate_weight <- common_ids <- Reduce(intersect, list(id_weight_log,id_sleep_day, id_heartrate_seconds))
+common_ids_sleep_heartrate_weight <- Reduce(intersect, list(id_sleep_day, id_heartrate_seconds,id_daily_activity, id_weight_log))
+common_ids_sleep_heartrate <- Reduce(intersect, list(id_sleep_day, id_heartrate_seconds,id_daily_activity))
+common_ids_sleep_weight <- Reduce(intersect, list(id_sleep_day, id_weight_log,id_daily_activity))
+common_ids_heartrate_weight <- Reduce(intersect, list(id_heartrate_seconds, id_weight_log,id_daily_activity))
+
+## 4. Common Ids daily activy and another feature
+
+common_ids_sleep <- Reduce(intersect, list(id_sleep_day, id_daily_activity))
+common_ids_weight <- Reduce(intersect, list(id_weight_log,id_daily_activity))
+common_ids_heartrate <- Reduce(intersect, list(id_heartrate_seconds,id_daily_activity))
+
+common_ids_all_5 <- Reduce(intersect, list(common_ids_sleep_heartrate, common_ids_sleep_weight, common_ids_heartrate_weight))
+common_ids_atleast_4 <- unique(c(common_ids_sleep_heartrate, common_ids_sleep_weight, common_ids_heartrate_weight))
+common_ids_atleast_3 <- unique(c(common_ids_sleep, common_ids_weight, common_ids_heartrate))
+
+common_ids_only_2 <- setdiff(id_daily_activity,common_ids_atleast_3)
+common_ids_only_3 <- setdiff(common_ids_atleast_3,common_ids_atleast_4)
+common_ids_only_4 <- setdiff(common_ids_atleast_4,common_ids_all_5)
+
+## 5. Display the combined common IDs
+
+length(common_ids_all_5)
+length(common_ids_only_4)
+length(common_ids_only_3)
+length(common_ids_only_2)
+
+sum_of_lengths <- length(common_ids_all_5)+length(common_ids_only_4)+length(common_ids_only_3)+length(common_ids_only_2)
+
+table_data <- data.frame(
+  Category = c("All 5 Features", "Only 4 Features","Only 3 Features", "Only 2 Features"),
+  Count = c(length(common_ids_all_5), length(common_ids_only_4),length(common_ids_only_3), length(common_ids_only_2)))
+
+table_data$PercentageCount <- (table_data$Count/sum_of_lengths) *100
+
+```
+
+### Pie Chart
+
+```{R}
+
+ggplot(table_data, aes(x = "", 
+                       y = PercentageCount, 
+                       fill = Category)) +
+  geom_bar(stat = "identity", 
+           width = 1, 
+           color = "white") +
+  scale_fill_brewer(palette = "Pastel1") +
+  geom_text(aes(label = sprintf("%.1f%%", PercentageCount)),
+            position = position_stack(vjust = 0.5),
+            size = 4.5,
+            color = "black") +
+  coord_polar(theta = "y") +
+  labs(title = "Feature Usage by Percentage of Individuals",
+       x = NULL,
+       y = NULL) +
+  theme_void() +
+  theme(legend.position = "right", 
+        legend.direction = "vertical", 
+        plot.title = element_text(hjust = 0.5))
+```
+
+### Waffle chart for numer of functions per user
+
+```{R}
+
+ggplot(table_data, aes(fill = Category, 
+                       values = PercentageCount)) +
+  geom_waffle(n_rows = 5, 
+              size = 0.33, 
+              colour = "white") +
+  scale_fill_brewer(palette = "Pastel1") +
+  coord_equal() +
+  labs(title = "Feature Usage by Percentage of Individuals",
+       x = NULL,
+       y = NULL) +
+  theme_void()+
+  theme(plot.title = element_text(hjust = 0.1))
+
+
+```
+
+## Popular days of the week
+
+```{R}
+
+## Weekly analysis of intensity
+
+daily_intensity_value <- intensity_datetime_separated %>%
+  select(-ActivityHour) %>%
+  group_by(intensityDate) %>%
+  filter(TotalIntensity !=0) %>%
+  summarize(DailyAverageIntensity = mean(TotalIntensity), .groups = "drop")
+
+head(intensity_datetime_separated)
+head(daily_intensity_value)
+
+## Convert and add a column for the day of the week
+
+daily_intensity_weekday <- daily_intensity_value %>%
+  mutate(intensityDay = weekdays(intensityDate)) %>%
+  mutate(intensityDay = factor(intensityDay, 
+                               levels = c("Monday", 
+                                          "Tuesday", 
+                                          "Wednesday",
+                                          "Thursday",
+                                          "Friday",
+                                          "Saturday",
+                                          "Sunday")))
+
+## Sumarise total average intensity by day of the week
+
+average_intensity_by_day <- daily_intensity_weekday %>%
+  group_by(intensityDay) %>%
+  summarise(AverageIntensityByWeekDay = mean(DailyAverageIntensity, na.rm =TRUE), .groups = "drop")
+
+head(average_intensity_by_day)
+  
+```
+
+### Bar chart 
+
+```{R}
+
+ggplot(average_intensity_by_day, aes(x = intensityDay, 
+                                     y = AverageIntensityByWeekDay, 
+                                     fill = intensityDay)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(expand = expansion(mult = 0)) +
+  scale_x_discrete() +
+  labs(title = "Average Intensity by Day of the Week",
+       x = "Day of the Week",
+       y = "Average Intensity") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+```
+
+### Time series
+
+```{R}
+
+ggplot(average_intensity_by_day, aes(x = intensityDay,
+                                     y = AverageIntensityByWeekDay)) + 
+  geom_line(color = "indianred3",
+            linewidth = 1,
+            group = 1) +
+  geom_smooth() +
+  labs(title = "Average Intensity by Day of the Week",
+       x = "Day of the Week",
+       y = "Average Intensity") +
+  theme_classic()
+
+```
+
+## Log patterns depending on the day of the week
+
+```{R}
+
+daily_activity_weekdays <- daily_activity_transformed %>%
+  mutate(Day = weekdays(as.Date(ActivityDate,
+                                format = "%d/%m/%Y"))) %>%
+  mutate(Day = factor(Day, levels = c("Monday",
+                                      "Tuesday",
+                                      "Wednesday",
+                                      "Thursday",
+                                      "Friday",
+                                      "Saturday",
+                                      "Sunday"))) %>%
+  group_by(Day) %>%
+  summarize(RecordedActivityDayCount = n(), .groups = "drop") %>%
+  mutate(activity_type = "Activity")
+
+head(daily_activity_weekdays)
+
+sleep_day_weekdays <- sleep_day_transformed %>%  
+  mutate(Day = weekdays(as.Date(SleepDay, format = "%d/%m/%Y"))) %>% 
+  mutate(Day = factor(Day, levels = c('Monday', 
+                                      'Tuesday', 
+                                      'Wednesday', 
+                                      'Thursday', 
+                                      'Friday',
+                                      'Saturday', 
+                                      'Sunday'))) %>% 
+  group_by(Day) %>% 
+  summarize(RecordedSleepDayCount = n(), .groups = "drop") %>% 
+  mutate(activity_type = "Sleep")
+
+heartrate_seconds_weekdays <- heartrate_day %>%  
+  mutate(Day = weekdays(as.Date(heartrateDate, format = "%d/%m/%Y"))) %>% 
+  mutate(Day = factor(Day, levels = c('Monday',
+                                      'Tuesday',
+                                      'Wednesday',
+                                      'Thursday', 
+                                      'Friday', 
+                                      'Saturday', 
+                                      'Sunday'))) %>% 
+  group_by(Day) %>% 
+  summarize(RecordedHeartrateDayCount = n(), .groups = "drop") %>% 
+  mutate(activity_type = "HeartRate")
+
+head(heartrate_seconds_weekdays)
+
+weight_weekdays <- weight_transformed %>%
+  mutate(Day = weekdays(as.Date(Date, format = "%d/%m/%Y"))) %>% 
+  mutate(Day = factor(Day, levels = c('Monday',
+                                      'Tuesday',
+                                      'Wednesday',
+                                      'Thursday', 
+                                      'Friday', 
+                                      'Saturday', 
+                                      'Sunday'))) %>% 
+  group_by(Day) %>% 
+  summarize(WeightDayCount = n(), .groups = "drop") %>% 
+  mutate(activity_type = "Weight Log")
+
+  
+
+## Combine the data
+
+combined_data <- bind_rows(
+  mutate(daily_activity_weekdays, activity_type = "Activity"),
+  mutate(sleep_day_weekdays, activity_type = "Sleep"),
+  mutate(heartrate_seconds_weekdays, activity_type = "Heart Rate"),
+  mutate(weight_weekdays, activity_type = "Weight")
+)
+
+long_data <- combined_data %>%
+  pivot_longer(cols = c(RecordedActivityDayCount, RecordedSleepDayCount, RecordedHeartrateDayCount, WeightDayCount),
+               names_to = "data_type",
+               values_to = "Count") %>%
+  drop_na()
+
+head(combined_data)
+head(long_data)
+
+```
+
+### Stacked bar chart for activity patterns
+
+```{R}
+
+ggplot(long_data, aes(x = Day, y = Count, fill = activity_type)) +
+  geom_bar(stat = "identity", position = "stack", color = "black", width = 0.7) +
+  labs(title = "Number of Data Recordings Based on Days of the Week",
+       x = "Weekday",
+       y = "Count") +
+  scale_y_continuous(breaks = seq(0,200, 20),
+                     limits = c(0,200),
+                     expand = expansion(mult = 0)) +
+  scale_x_discrete() +
+  scale_fill_manual(values = c("#377EB8", "#E41A1C", "#984EA3", "#FF7F00")) +
+  theme_classic()
+
+```
+
+## Activity metric by day of the week
+
+```{R}
+
+daily_activity_weekdays_average <- daily_activity_updated %>%
+  mutate(activityDay = weekdays(as.Date(ActivityDate))) %>%
+  mutate(activityDay = factor(activityDay, levels = c("Monday",
+                                                      "Tuesday",
+                                                      "Wednesday",
+                                                      "Thursday",
+                                                      "Friday",
+                                                      "Saturday",
+                                                      "Sunday"))) %>%
+  group_by(activityDay) %>%
+  filter_all(any_vars(. != 0)) %>%
+  summarize(
+    Average_Steps = mean(TotalSteps),
+    Average_Calories = mean(Calories),
+    Average_Sedentary_Minutes = mean(SedentaryMinutes),
+    Average_Active_Minutes = mean(TotalActiveMinutes),
+    .groups = "drop"
+  ) %>%
+  drop_na()
+
+head(daily_activity_weekdays_average)
+
+daily_activity_weekdays_long <- daily_activity_weekdays_average %>%
+  pivot_longer(cols = c(
+    Average_Steps,
+    Average_Calories,
+    Average_Sedentary_Minutes,
+    Average_Active_Minutes),
+    names_to = "Metric",
+    values_to = "Value")
+
+head(daily_activity_weekdays_long)
+
+##Prepare data for charting
+
+### Separate data for bar charts and line charts
+
+bar_chart_data <- daily_activity_weekdays_long %>%
+  filter(Metric != "Average_Activity_Minutes")
+
+line_chart_data <- daily_activity_weekdays_long %>%
+  filter(Metric == "Average_Active_Minutes")
+
+head(bar_chart_data)
+head(line_chart_data)
+
+```
+
+### Combination Chart 
+
+```{R}
+
+  ggplot() +
+  geom_bar(data = bar_chart_data, aes(x = activityDay, 
+                                      y = Value, 
+                                      fill = Metric),
+           stat = "identity", 
+           position = position_dodge(width = 0.8), 
+           color = "black", 
+           size = 0.5) +
+  geom_line(data = line_chart_data, aes(x = activityDay, 
+                                        y = Value * 25, 
+                                        color = "Average Active Minutes"),
+            size = 1.0, 
+            group = 1) +
+  geom_point(data = line_chart_data, aes(x = activityDay,
+                                         y = Value * 25,
+                                         colour = "Average Active Minutes"),
+             size = 2.5) +
+  labs(title = "Comparison of Activity Metrics by Weekday",
+       x = "Weekday",
+       y = "Value") +
+  scale_fill_brewer(palette = "Accent") +
+  scale_color_manual(values = c("Average Active Minutes" = "black")) +
+  theme_classic() +
+  theme(legend.title = element_blank(), 
+        legend.position = "bottom") +
+  guides(fill = guide_legend(ncol = 2)) +
+  scale_y_continuous(expand = expansion(mult = 0),
+                     limits = c(0, 10000),
+                     breaks = seq(0, 10000, 1000),
+                     sec.axis = sec_axis(~./25,
+                                         name = "Average Active Minutes")) 
+
+
+```
+
+
+
+
+
+## Intense Activity Peak Times
+
+```{R}
+
+## Time of day analysis
+
+intensity_value_by_time <- intensity_datetime_separated %>%
+  separate(intensityTime, c("Hour", "Minute", "Second")) %>%
+  mutate(Hour = as.numeric(Hour)) %>%
+  group_by(Hour) %>%
+  summarise(TotalAverageIntensity = sum(AverageIntensity,
+                                        na.rm = TRUE),
+            .groups = "drop")
+
+head(intensity_value_by_time)
+
+max_intensity_value_by_time <- intensity_value_by_time %>%
+  mutate(ToHighLight = ifelse(TotalAverageIntensity == max(TotalAverageIntensity), "yes", "no"))
+
+head(max_intensity_value_by_time)
+
+```
+
+### Histogram representation of intensity analysis
+
+```{R}
+
+ggplot(intensity_value_by_time, aes(x = Hour,
+                                    y = TotalAverageIntensity)) +
+  geom_bar(stat = "identity",
+           fill = "violet",
+           color = "black",
+           width = 1) +
+  labs(title = "Hourly Histogram of Total Average Intensity",
+       x = "Hour",
+       y = "Total Average Intensity") +
+  scale_x_continuous(breaks = seq(0, 23, by = 1)) +
+  scale_y_continuous(expand = expansion(mult = 0),
+                     limits = c(0, 350),
+                     breaks = seq(0, 350, 50)) +
+  theme_classic()
+
+ggplot(max_intensity_value_by_time, aes(x = Hour,
+                                    y = TotalAverageIntensity,
+                                    fill = ToHighLight)) +
+  geom_bar(stat = "identity",
+           width = 1) +
+  scale_fill_manual(values = c("yes" = "#607d3b", "no" = "#3E3D53")) +
+  labs(title = "Hour of Maximum Intense Activities Recorded",
+       x = "Hour",
+       y = "Total Average Intensity") +
+  scale_x_continuous(breaks = seq(0, 23, by = 1)) +
+  scale_y_continuous(expand = expansion(mult = 0),
+                     limits = c(0, 350),
+                     breaks = seq(0, 350, 50)) +
+  theme_classic() 
+
+```
+
+## Correlations
+
+### Correlation between daily activities and BMI
+
+```{R}
+
+## Classify BMI
+
+average_BMI_individual <- weight_transformed %>%
+  group_by(Id) %>%
+  summarise(AverageBMI = mean(BMI),
+            .groups = "drop") %>%
+  mutate(type = case_when(
+    AverageBMI <18 ~ "underweight",
+    between(AverageBMI, 18.5, 24.9) ~ "healthyweight",
+    between(AverageBMI, 25.0, 29.9) ~ "overweight",
+    AverageBMI >= 30.0 ~ "obese",
+    TRUE ~ NA_character_
+  ))
+
+head(average_BMI_individual)
+
+## Merge activities and BMI by Id value
+
+activity_weight_merged <- average_BMI_individual %>%
+  left_join(daily_activity_summary_average, by = "Id") %>%
+  drop_na()
+
+head(activity_weight_merged)
+
+## Correlations
+
+correlations_activity_weight <- cor(activity_weight_merged[,
+                                                           c("AverageBMI",
+                                                             "average_active_distance",
+                                                             "average_sedentary_distance",
+                                                             "average_active_minutes",
+                                                             "average_sedentary_minutes",
+                                                             "average_calories",
+                                                             "average_steps")])
+
+head(correlations_activity_weight)
+```
+
+##### Correlation plot
+
+```{R}
+
+corrplot(correlations_activity_weight,
+         method = "circle",
+         type = "upper",
+         order = "hclust",
+         addrect = 2,
+         col = COL2("RdBu", 10),
+         cl.ratio = 0.2,
+         tl.col ="black",
+         tl.cex = 0.8,
+         tl.srt = 45,
+         addCoef.col = "black",
+         diag = FALSE,
+         number.cex = 0.7
+)
+
+```
+### Correlation at the minute level
+
+```{R}
+##  Convert Date and Time columns into the appropriate formats
+
+minute_calories_formatted_1 <- minute_calories_formatted %>%
+  mutate(DateTime = as.POSIXct(paste(MinuteCaloriesDate, MinuteCaloriesTime), 
+                               format = "%Y-%m-%d %H:%M:%S"))
+
+head(minute_calories_formatted_1)
+
+steps_datetime_minute_1 <- steps_datetime_minute %>%
+  mutate(DateTime_steps = as.POSIXct(paste(stepsDate, stepsTime), format = "%Y-%m-%d %H:%M:%S"))
+
+MET_datetime_minute_1 <- MET_datetime_minute %>%
+  mutate(DateTime_MET = as.POSIXct(paste(METDate, METTime), format = "%Y-%m-%d %H:%M:%S"))
+
+minute_intensities_formatted_1 <- minute_intensities_formatted %>%
+  mutate(DateTime_intensity = as.POSIXct(paste(MinuteIntensitiesDate, MinuteIntensitiesTime), format = "%Y-%m-%d %H:%M:%S"))
+
+## Merge data
+
+merged_data <- left_join(minute_calories_formatted_1, 
+                         steps_datetime_minute_1, 
+                         by = c("Id", "DateTime" = "DateTime_steps")) %>%
+  left_join(., MET_datetime_minute_1,
+            by = c("Id", "DateTime" = "DateTime_MET")) %>%
+  left_join(., minute_intensities_formatted_1,
+            by = c("Id", "DateTime" = "DateTime_intensity")) %>%
+  select(Id, Calories, stepsDate, stepsTime, METs, Intensity, Steps, DateTime)
+
+head(merged_data)
+
+## Correlation Analysis
+
+correlations_merged <- cor(merged_data[, c("Calories", "METs", "Steps", "Intensity")])
+
+head(correlations_merged)
+
+```
+
+##### Correlation plot 
+
+```{R}
+
+corrplot(correlations_merged,
+         method ="circle",
+         type = "upper",
+         order = "FPC",
+         addrect = 2,
+         col = COL2("RdBu", 100),
+         cl.ratio = 0.2,
+         tl.col ="black",
+         tl.cex = 0.8,
+         tl.srt = 45,
+         addCoef.col = "white",
+         diag = FALSE,
+         number.cex = 0.7)
+
+
+```
+
+## Sleep Analysis
+
+#### Most Prevalent Sleep Times
+
+
+```{R}
+### Formating minute_sleep
+
+minute_sleep_formatted1 <- minute_sleep_formatted %>%
+  mutate(MinuteSleepTime = as.POSIXct(MinuteSleepTime, 
+                                      format = "%H:%M:%S"),
+         Hour = as.numeric(format(MinuteSleepTime, "%H")))
+
+head(minute_sleep_formatted1)
+
+```
+##### Histogram for representation
+
+```{R}
+ggplot(data = minute_sleep_formatted1, aes(x = Hour)) +
+  geom_histogram(binwidth = 1,
+                 fill = "#CF9FFF",
+                 color= "black", 
+                 alpha = 0.7) +
+  labs(title = "Hourly Histogram of MinuteSleepTime",
+       x = "Hour",
+       y = "Frequency") +
+  scale_y_continuous(expand = expansion(mult = 0),
+                     limits = c(0, 25000),
+                     breaks = seq(0, 30000, 5000)) +
+  scale_x_continuous(breaks = seq(0, 23, by = 1)) +
+  theme_classic()
+
+```
+
+#### Average Sleep duration by weekday
+
+```{R}
+
+sleep_day_weekdays_updated <- sleep_day_transformed %>%
+  mutate(sleepDay = weekdays(as.Date(SleepDay)),
+         sleepTime = format(SleepDay, format = "%H:%M:%S")) %>%
+  mutate(sleepDay = factor(sleepDay,
+                           levels = c("Monday",
+                                      "Tuesday",
+                                      "Wednesday",
+                                      "Thursday",
+                                      "Friday",
+                                      "Saturday",
+                                      "Sunday"))) %>%
+  group_by(sleepDay) %>%
+  summarize(TotalSleepDuration_hours = sum(TotalMinutesAsleep,na.rm = TRUE)/60,
+            MeanSleepDuration_hours = mean(TotalMinutesAsleep)/60,
+            .groups = "drop") %>%
+  drop_na()
+
+head(sleep_day_weekdays_updated)
+
+```
+##### Line Chart for sleep analysis
+
+```{R}
+
+ggplot(data = sleep_day_weekdays_updated, aes(x = sleepDay,
+                                              y = MeanSleepDuration_hours,
+                                              fill = sleepDay,
+                                              group = 1,)) +
+  geom_line(linetype = "dashed",
+            color = "purple") +
+  geom_point(color = "purple",
+             size = 5,
+             shape = 8) +
+  labs(title = "Average Sleep Duration by Day of the Week",
+       x = "Day of the Week",
+       y = "Time (hours)") +
+  theme_classic() +
+  theme(legend.position = "none") +
+   scale_y_continuous(expand = expansion(mult = 0),
+                     limits = c(4, 10),
+                     breaks = seq(4, 10, 2))
+
+
+```
+
+#### Average Sleep Duration by User
+
+```{R}
+
+average_sleep_duration <- sleep_day_transformed %>%
+  group_by(Id) %>%
+  summarise(MeanSleepDuration = mean(TotalMinutesAsleep),
+             .groups = "drop") %>%
+  drop_na()
+
+head(average_sleep_duration)
+
+```
+
+##### Bar graph for representation 
+
+```{R}
+ggplot(average_sleep_duration, aes(x = factor(Id),
+                                   y = MeanSleepDuration)) +
+  geom_bar(stat = "identity",
+           fill = "#CF9FFF",
+           color = "black") +
+  geom_hline(yintercept = 420,
+             linetype = "dotted",
+             linewidth = 1.5,
+             color = "black") +
+  labs(title = "Average Sleep Duration By User",
+       x= "UserId",
+       y = "Mean Sleep Duration (minutes)") +
+  scale_y_continuous(expand = expansion(mult = 0),
+                     limits = c(0, 750),
+                     breaks = seq(0, 750, 50)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust =1))
+
+```
+
+#### Percentage of users that get adequate amount of sleep
+
+```{R}
+
+Average_sleep_duration_categories <- average_sleep_duration %>%
+  mutate(SleepCategory = case_when(
+    MeanSleepDuration >= 420 ~ "Adequate Sleep",
+    TRUE ~ "Not Adequate Sleep"
+  ))
+
+Adequate_Sleep_Percentage <- Average_sleep_duration_categories %>%
+  select("SleepCategory", "MeanSleepDuration") %>%
+  group_by(SleepCategory) %>%
+  summarise(Percentage = n() / nrow(Average_sleep_duration_categories) * 100)
+
+
+head(Adequate_Sleep_Percentage)
+
+```
+
+##### Pie chart for representation
+
+```{R}
+
+ggplot(Adequate_Sleep_Percentage, aes(x = "",
+                                      y = Percentage,
+                                      fill = SleepCategory)) +
+  geom_bar(stat = "identity",
+           width = 1,
+           color = "black") +
+  coord_polar("y") +
+  scale_fill_manual(values = c("#028A0F", "#B90E0A")) +
+  geom_text(aes(label = sprintf("%.1f%%",
+                               Percentage)),
+            position = position_stack(vjust = 0.5),
+                                      size = 5,
+            color = "white") +
+  labs(title ="Percentage of Users with Adequate Sleep",
+                   fill = "Sleep Category" ) +
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+#### Sleep values
+
+```{R}
+
+## Calculate counts
+
+
+number_of_each_sleep_value <- minute_sleep_values %>%
+  group_by(SleepValue) %>%
+  summarise(minute_sleep_value_counts = n(),
+            .groups = "drop")
+
+head(number_of_each_sleep_value)
+
+## Calculate percentage
+
+total_counts <- sum(number_of_each_sleep_value$minute_sleep_value_counts)
+
+number_of_each_sleep_value$Percentage <- (number_of_each_sleep_value$minute_sleep_value_counts / total_counts) * 100
+
+head(total_counts)
+head(number_of_each_sleep_value)
+
+label_position <- max(number_of_each_sleep_value$Percentage * 1000) + 10
+
+```
+
+##### Combination chart for visualization
+
+```{R}
+
+ggplot(number_of_each_sleep_value, aes(x = SleepValue)) +
+  geom_bar(aes(y = minute_sleep_value_counts, 
+               fill = "Total Counts"), 
+           stat = "identity", 
+           position = "dodge",
+           color = "black") +
+  geom_line(aes(y = Percentage * 1000, 
+                group = 1, 
+                color = "Percentage"), 
+            stat = "identity", 
+            size = 1) +
+  geom_text(aes(y = Percentage * 1000, 
+                label = sprintf("%.1f%%", Percentage)),
+            vjust = -0.5, 
+            hjust = 0.5, 
+            size = 3, 
+            color = "black")+  # Add percentage labels
+  scale_y_continuous(expand = expansion(mult = 0),
+                     limits = c(0, 200000),
+                     breaks = seq(0, 200000, 50000),
+                     sec.axis = sec_axis(trans = ~./10000, 
+                                         name = "Percentage",
+                                         breaks = pretty_breaks(n = 5), 
+                                         labels = percent_format(scale = 10))) +
+  
+  scale_fill_manual(values = "#cf9fff") +
+  scale_color_manual(values = "black") +
+  labs(title = "Analysis of Sleep Stages",
+       subtitle = "Combination Chart: Total Counts and Percentage",
+       x = "Sleep Stage",
+       y = "Total Counts") +
+  theme_classic() +
+  theme(legend.position = "none")
+  
+
+```
+
+## Relationship between METs and heartrate
+
+```{R}
+
+## Merge data calibrated in minutes
+
+merged_METs_heartrate <- MET_datetime_minute %>%
+  inner_join(heartrate_minute, by = c("Id", 
+                                      "METDate" = "heartrateDate", 
+                                      "METTime" = "minute_floor"))
+
+## Compute correlation coefficients
+
+correlation_METs_heartrate <- cor(merged_METs_heartrate$METs,
+                                  merged_METs_heartrate$mean_heartrate)
+paste("Pearson Correlation Coefficient: ", round(correlation_METs_heartrate, 4))
+
+```
+
+#### Scatter Plots for visualization
+
+```{R}
+ggplot(merged_METs_heartrate, aes(x = METs,
+                                  y = mean_heartrate)) +
+  geom_point() +
+  geom_smooth(method = "lm",
+              formula = y ~ x) +  ### <- Adds regression line
+  stat_cor(method = "pearson",
+           label.x = 50,
+           label.y = 50) +
+  facet_wrap(~Id) +
+  labs(title = "Correlation Between Mean Heart Rate and METs by User") +
+  theme_classic()
+
+```
+
+## Relationship between steps and heartrate
+
+```{R}
+
+merged_steps_heartrate <- steps_datetime_minute %>%
+  inner_join(heartrate_minute, by = c("Id",
+                                      "stepsDate" = "heartrateDate",
+                                      "stepsTime" = "minute_floor")) %>%
+  group_by(Id)
+
+head(merged_steps_heartrate)
+
+correlation_steps_heartrate <- cor(merged_steps_heartrate$Steps, 
+                                   merged_steps_heartrate$mean_heartrate)
+
+paste("Pearson Correlation Coefficient: ",
+      round(correlation_steps_heartrate, 4))
+
+
+```
+
+#### Scatter plot for visualization
+
+```{R}
+
+ggplot(merged_steps_heartrate, aes(x = Steps,
+                                   y = mean_heartrate)) +
+  geom_point() +
+  geom_smooth() + ## <- Adds regression line
+  stat_cor(method = "pearson",
+           label.x = 50,
+           label.y = 50) +
+  facet_wrap(~Id) +
+  labs(title = "Correlation Between Mean Heart Rate and Steps by User") +
+  theme_classic()
+
+```
+
+## Relationship between intensity level and Heart Rate
+
+```{R}
+
+merged_heartrate_intensity <- left_join(heartrate_minute, 
+                                        minute_intensity_level,
+                                        by = c("Id",
+                                               "heartrateDate" = "minuteIntensityDate",
+                                               "minute_floor" = "minuteIntensityTime")) %>%
+  drop_na()
+
+head(merged_heartrate_intensity)
+
+```
+
+#### Boxplot for visualization
+
+```{R}
+
+## general
+
+ggplot(merged_heartrate_intensity, aes(x = IntensityLevel,
+                                       y = mean_heartrate,
+                                       fill = IntensityLevel)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Pastel2") +
+  labs(title = "Relationship between Intensity Level and Mean Heart Rate",
+       x = "Intensity Level",
+       y = "Mean Heart Rate") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+## by users
+
+ggplot(merged_heartrate_intensity, aes(x = IntensityLevel,
+                                       y = mean_heartrate,
+                                       fill = IntensityLevel)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Pastel2") +
+  labs(title = "Relationship between Intensity Level and Mean Heart Rate",
+       subtitle = "By User",
+       x = "Intensity Level",
+       y = "Mean Heart Rate") +
+  theme_classic()+
+  facet_wrap(~Id) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(legend.position = "none")
+
+```
+
+## Analysis of Weight Data and BMI
+
+#### BMI Categories by User
+```{R}
+## Data categorization
+
+number_of_each_BMI_type <- average_BMI_individual %>%
+  group_by(type) %>%#
+  summarise(BMI_type_counts = n(),
+            .groups = "drop")
+
+length (average_BMI_individual$Id)
+head(number_of_each_BMI_type)
+
+```
+
+##### Bar chart for BMI classification
+
+```{R}
+ggplot(number_of_each_BMI_type, aes(x = type,
+                                    y = BMI_type_counts,
+                                    fill = type)) +
+  geom_bar(stat = "identity",
+           position = "dodge",
+           color = "black") +
+  scale_fill_brewer(palette = "PuBuGn", 3) +
+  scale_y_continuous(expand = expansion(mult = 0)) +
+  labs(title = "BMI Type Totals",
+       x = "BMI category",
+       y = "Count") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+```
+
+#### Comparing activities based on BMI
+
+```{R}
+filtered_BMI_data <- average_BMI_individual %>%
+  left_join(daily_activity_summary_average,
+            by = "Id") %>%
+  drop_na()
+
+glimpse(filtered_BMI_data)
+head(filtered_BMI_data)
+
+```
+
+##### Boxplots for visualization
+
+```{R}
+bp1 <- ggplot(filtered_BMI_data, aes(x = type,
+                              y = average_distance,
+                              fill = type)) +
+  geom_boxplot() +
+  labs(title = "Distance by BMI Type",
+       x = "BMI Type",
+       y = "Average Distance") +
+  scale_fill_brewer(palette = "PuBuGn", 3) +
+  scale_y_continuous(limits = c(0, 15),
+                     breaks = seq(0, 15, 5)) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+bp2 <- ggplot(filtered_BMI_data, aes(x = type,
+                              y = average_sedentary_minutes,
+                              fill = type)) +
+  geom_boxplot() +
+  labs(title = "Sedentary Minutes by BMI Type",
+       x = "BMI Type",
+       y = "Average Time") +
+  scale_fill_brewer(palette = "PuBuGn", 3) +
+  scale_y_continuous(limits = c(600, 1400),
+                     breaks = seq(600,1400, 200)) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+bp3 <- ggplot(filtered_BMI_data, aes(x = type, 
+                              y = average_active_minutes, 
+                              fill = type)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "PuBuGn", 3) +
+  labs(title = "Active minutes by BMI Type", 
+       x = "BMI Type", 
+       y = "Average Active Minutes") +
+  scale_y_continuous(limits = c(50,400),
+                     breaks = seq(50,400, 50)) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+weight_figure <- ggarrange(bp1, bp2, bp3,
+                           ncol = 3)
+annotate_figure(weight_figure,
+                top = text_grob("Relationship of Activities by BMI Type", size = 14))
+
+print(weight_figure)
+```
+
+#### BMI and Sleep duration
+
+```{R}
+average_sleep_individual <- sleep_day_transformed %>% 
+  group_by(Id) %>% 
+  summarise(AverageSleepByDay = mean(TotalMinutesAsleep, 
+                                     na.rm = TRUE),
+            .groups="drop")
+
+sleep_weight_merged <- average_BMI_individual %>% 
+  left_join(average_sleep_individual,by="Id") %>%   
+  drop_na()
+
+glimpse(sleep_weight_merged)
+head(sleep_weight_merged)
+
+```
+
+##### Boxplot for visualization
+
+```{R}
+ggplot(sleep_weight_merged, aes(x = type, 
+                                y = AverageSleepByDay, 
+                                fill = type)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "PuBuGn", 3) +
+  scale_y_continuous(limits = c(100,500),
+                     breaks = seq(100, 500, 50)) +
+  labs(title = "Distribution of Average Sleep Minutes by BMI Type", 
+       x = "BMI Type", 
+       y = "Average Sleep Minutes by day") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+```
+#### BMI and Heartrate
+
+```{R}
+heartrate_day_average <- heartrate_day %>%
+  group_by(Id) %>%
+  summarise(mean_heartrate = mean(mean_heartrate_day),
+           max_heartrate  =mean(max_heartrate_day),
+           min_heartrate = mean(min_heartrate_day)) %>%
+  ungroup()
+head(heartrate_day_average)
+
+heartrate_weight_merged <- average_BMI_individual %>% 
+  left_join(heartrate_day_average,
+            by="Id") %>%   
+  drop_na()
+
+glimpse(heartrate_weight_merged)
+head(heartrate_weight_merged)
+
+```
+
+##### Boxplots for visualization
+
+```{R}
+
+bp4 <- ggplot(heartrate_weight_merged, aes(x = type, 
+                                    y = mean_heartrate, 
+                                    fill = type)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#ECE2F0", "#1C9099")) +
+  scale_y_continuous(limits = c(65, 85),
+                     breaks = seq(65, 85, 5)) +
+  labs(title = "Mean heartrate by BMI Type", 
+       x = "BMI Type", 
+       y = "Average heartrate") +
+  theme_classic()  +
+  theme(legend.position = "none")
+ 
+bp5 <- ggplot(heartrate_weight_merged, aes(x = type, 
+                                    y = max_heartrate, 
+                                    fill = type)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#ECE2F0", "#1C9099")) +
+  scale_y_continuous(limits = c(130, 160),
+                     breaks = seq(130, 160, 5)) +
+  labs(title = "Max heartrate by BMI Type", 
+       x = "BMI Type", 
+       y = "Max heartrate") +
+  theme_classic()  +
+  theme(legend.position = "none")
+
+bp6 <- ggplot(heartrate_weight_merged, aes(x = type, 
+                                    y = min_heartrate, 
+                                    fill = type)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#ECE2F0", "#1C9099")) +
+  scale_y_continuous(limits = c(40, 60),
+                     breaks = seq(40, 60, 5)) +
+  labs(title = "Min heartrate by BMI Type", 
+       x = "BMI Type", 
+       y = "Min heartrate") +
+  theme_classic()  +
+  theme(legend.position = "none")
+
+weight_figure_2 <- ggarrange(bp4, bp5, bp6,
+                           ncol = 3)
+annotate_figure(weight_figure_2,
+                top = text_grob("Relationship between Heart Rate and BMI Type", size = 14))
+
+print(weight_figure_2)
+
+```

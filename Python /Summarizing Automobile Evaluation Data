@@ -1,0 +1,66 @@
+This dataset contains information on the cost and physical attributes of several thousand cars. 
+Originally, this dataset was used for to train a classification model that assigned an acceptability score/category to cars based on these attributes.
+
+The car evaluation dataset has been sourced from the UCI Machine Learning Repository and has been slightly modified for this project. 
+Specifically, one additional field manufacturer_country has been simulated for illustrative purposes. 
+You can read more about the details, features, and original uses of this dataset in research on the UCI data description page.
+
+import pandas as pd
+import numpy as np
+
+car_eval = pd.read_csv('car_eval_dataset.csv')
+print(car_eval.head())
+
+# Table of Frequencies
+freq = car_eval.manufacturer_country.value_counts()
+print(freq)
+
+# Modal: Most occuring country
+modal_cat =freq.index[0]
+print(modal_cat) # Output: Japan
+
+print(freq.index[5]) # France
+
+# 2  Table of Proportions
+prop = car_eval.manufacturer_country.value_counts(normalize=True)
+print(prop) # 23% for Japan
+
+# 3 List of possible values
+print(car_eval['buying_cost'].unique()) # ['vhigh' 'med' 'low' 'high']
+ 
+# 4 Ordered list for ordinal categorical variable
+buying_cost_categories = ['low', 'med' ,'vhigh' , 'high']
+
+# 5 Convert to Type category 
+car_eval['buying_cost'] = pd.Categorical(car_eval['buying_cost'], buying_cost_categories, ordered = True)
+print(car_eval['buying_cost'].head())
+
+# 6 Median for buying cost category
+median_category_num = np.median(car_eval['buying_cost'].cat.codes)
+print(median_category_num) 
+ 
+median_category = buying_cost_categories[int(median_category_num)]
+print(median_category) # 1
+
+# Summarize luggage capacity
+# 7 Table of proportions
+prop2 = car_eval.luggage.value_counts(normalize=True)
+print(prop2) 
+
+# 8 Account for missing data
+prop3 = car_eval.luggage.value_counts(dropna = False, normalize=True)
+print(prop3) # no missings
+
+print(car_eval.luggage.isnull().any()) # no missings
+
+# 9 
+prop4 = car_eval.luggage.value_counts(dropna = False)
+print(prop4) 
+
+# Passanger Capacity
+count = (car_eval.doors == '5more').sum()
+print(count)
+
+# 11 
+proportion = (car_eval["doors"] == '5more').mean()
+print(proportion)

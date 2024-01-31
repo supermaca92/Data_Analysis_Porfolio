@@ -1,0 +1,61 @@
+import codecademylib3
+import pandas as pd
+
+ad_clicks = pd.read_csv('ad_clicks.csv')
+print(ad_clicks.head())
+
+# Views per data source
+
+count_by_source = ad_clicks.groupby('utm_source').user_id.count().reset_index()
+print(count_by_source)
+
+# Create a column displaying if somebody clicked. 
+
+ad_clicks['is_click'] = ~ad_clicks.ad_click_timestamp.isnull()
+print(ad_clicks)
+
+# Percent of people who clicked ads from each utm_source
+
+clicks_by_source = ad_clicks.groupby(['utm_source', 'is_click']).user_id.count().reset_index()
+print(clicks_by_source)
+
+clicks_pivot = clicks_by_source.pivot(index = 'utm_source', columns = 'is_click', values = 'user_id').reset_index()
+print(clicks_pivot)
+
+clicks_pivot['percent_clicked'] = clicks_pivot[True]/(clicks_pivot[True] + clicks_pivot[False]) * 100
+print(clicks_pivot)
+
+#Analyzing the AB Test
+
+clicks_group = ad_clicks.groupby('experimental_group').user_id.count().reset_index()
+clicks_group1 = ad_clicks.groupby(['experimental_group', 'is_click']).user_id.count().reset_index()
+clicks_group_pivot = clicks_group1.pivot(index = 'experimental_group', columns = 'is_click', values = 'user_id').reset_index()
+
+clicks_group_pivot['percent_clicked'] = clicks_group_pivot[True]/(clicks_group_pivot[True] + clicks_group_pivot[False]) * 100
+
+print(clicks_group_pivot)
+
+# CLicks by weekday
+
+a_clicks = ad_clicks[ad_clicks['experimental_group'] == 'A']
+b_clicks = ad_clicks[ad_clicks['experimental_group'] == 'B']
+
+a_percent_by_day = a_clicks.groupby(['is_click', 'day']).user_id.count().reset_index()
+b_percent_by_day = b_clicks.groupby(['is_click', 'day']).user_id.count().reset_index()
+
+print(a_percent_by_day)
+print(b_percent_by_day)
+
+a_pivot = a_percent_by_day.pivot(columns = 'is_click', index = 'day', values = 'user_id')
+print(a_pivot)
+
+b_pivot = b_percent_by_day.pivot(columns = 'is_click', index = 'day', values = 'user_id')
+print(b_pivot)
+
+a_pivot['percentage'] = a_pivot[True]/(a_pivot[True] + a_pivot[False]) * 100
+print(a_pivot)
+
+b_pivot['percentage'] = b_pivot[True]/(b_pivot[True] + b_pivot[False]) * 100
+print(b_pivot)
+
+## Recommend using A

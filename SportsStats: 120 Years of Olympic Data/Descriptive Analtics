@@ -1,0 +1,994 @@
+
+# SportsStats Olympic Games Analysis
+
+
+## DESCRIPTIVE STATISTICS
+
+
+import pandas as pd
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib import colormaps
+from matplotlib.patches import ConnectionPatch
+import seaborn as sns
+import pywaffle as Waffle
+from pandasql import sqldf
+pysqldf = lambda q: sqldf(q, globals())
+import shapefile as shp
+import geopandas as gpd
+
+athletes_clean = pd.read_csv(r"G:\My Drive\PERSONAL DEVELOPMENT\CAPSTONE PROJECTS\SportsStats Analysis\athletes_cleaned.csv")
+noc = pd.read_csv(r"G:\My Drive\PERSONAL DEVELOPMENT\CAPSTONE PROJECTS\SportsStats Analysis\noc_regions.csv")
+
+### Athletes per gender
+
+grouped = athletes_clean.groupby(['Sex'])
+print("Male athletes")
+print(grouped.get_group("M").nunique())
+print("---")
+print("Female athletes")
+print(grouped.get_group("F").nunique())
+
+# Create the percentages of each to create a graph
+
+total_athletes = sqldf('''SELECT Sex, 
+                            COUNT(Sex) AS number_of_athletes
+                        FROM athletes_clean 
+                        GROUP BY 1''')
+total_athletes
+
+
+total_athletes_ratio = pd.crosstab(athletes_clean['ID'].count(), athletes_clean['Sex'], normalize = 0).add_prefix(('ratio_'))
+#total_athletes_ratio['ratio'] = total_athletes_ratio['F'].div(total_athletes_ratio['M'])
+
+total_athletes_ratio
+
+# Visualization of the ratios
+
+fig = total_athletes_ratio.plot( kind = 'bar', stacked = True)
+plt.style.use('bmh')
+plt.xlabel('')
+for xlabel_i in fig.axes.get_xticklabels():
+    xlabel_i.set_visible(False)
+for ticks in fig.axes.get_xticklines():
+    ticks.set_visible(False)
+for ticks in fig.axes.get_yticklines():
+    ticks.set_visible(False)
+plt.title("Ratio of Male to Female Athletes")
+plt.savefig('Ratio_male_to_female.png')
+plt.show()
+
+Male athletes dominate representation in the Olympic Games overall
+
+### Medal Distribution by Gender
+
+# Create a dataframe for genders and medals
+
+gender_df = athletes_clean.drop(
+    ["ID", "Name", "Age", "Height", "Weight", "Team", "NOC", "Games", "Year", "Season", "City", "Sport", "Event"], 
+    axis = 'columns')
+
+#Drop no medals
+
+gender_df = gender_df.dropna()
+
+gender_df
+
+
+#Add a counter column
+
+gender_grouped = gender_df.groupby(['Medal','Sex']).value_counts().sort_index()
+gg = gender_grouped.reset_index()
+gg
+
+gender_df['Counter'] = 1
+gg1 = gender_df.groupby(['Medal','Sex'])['Counter'].sum()
+gg1
+
+gg2 = gender_df.groupby(['Sex', 'Medal']).Medal.count().reset_index(name='counts')
+
+
+ax = sns.barplot(data = gg2,
+                   x = 'Medal',
+                   y = 'counts',
+                   hue = 'Sex',
+                   order = ['Gold', 'Silver', 'Bronze'])
+ax.bar_label(ax.containers[0])
+ax.bar_label(ax.containers[1])
+ax.set_ylabel('Number of Medals')
+ax.set_title('Distribution of Medals by Sex')
+plt.savefig('Distribution_medal_by_sex.png')
+plt.show()
+
+
+Independently of the medal type, more males win medals. 
+However, this is to be expected due to their higher representation in the games.
+
+## ANALYSIS OF ATHLETES AGE
+
+### Distribution of Athletes by Age
+
+age_distribution = sqldf('''SELECT Age,
+                                COUNT(Age) as number_of_athletes
+                        FROM athletes_clean 
+                        GROUP BY 1''')
+age_distribution =  age_distribution.dropna()
+age_distribution
+
+age_distribution_graph = sqldf('''SELECT Age
+                        FROM athletes_clean''')
+fig3 = plt.hist(age_distribution_graph, 
+                40,
+                color = 'orchid',
+                histtype = 'stepfilled',
+                range = [0, 80],
+               edgecolor = 'black')
+plt.xlabel('Age')
+plt.ylabel('Total # of athletes')
+plt.title('Total Athlete Age Distribution')
+plt.style.use('default')
+plt.savefig('Total_age_distribution.png')
+plt.show()
+
+Athletes seem to be more likely to be between 20 and 30 years old.
+
+age_distribution1 = sqldf('''SELECT Age,
+                                COUNT(Age) as number_of_athletes,
+                                Medal
+                        FROM athletes_clean 
+                        WHERE Medal IS NOT NULL
+                        GROUP BY 1''')
+age_distribution1 =  age_distribution1.dropna()
+age_distribution1
+
+age_distribution1_graph = sqldf('''SELECT Age
+                        FROM athletes_clean
+                        WHERE Medal IS NOT NULL''')
+fig3 = plt.hist(age_distribution1_graph, 
+                40,
+                color = 'orchid',
+                histtype = 'stepfilled',
+                range = [0, 80],
+               edgecolor = 'black')
+plt.xlabel('Age')
+plt.ylabel('Total # of athletes')
+plt.title('Total Athlete Age Distribution (Athletes with Medals)')
+plt.style.use('default')
+plt.savefig('Total_age_distribution1.png')
+plt.show()
+
+## Overlap both graphs
+
+plt.hist(age_distribution_graph,
+        40,
+        range = [0, 80],
+        label = 'Without Medals',
+        alpha = 0.4,
+        edgecolor = 'black',
+        color = 'Purple')
+plt.hist(age_distribution1_graph,
+        40,
+        range = [0, 80],
+        label = 'With Medals',
+        alpha = 0.5,
+        edgecolor = 'black',
+        color = 'deeppink')
+plt.legend()
+plt.xlabel('Age')
+plt.ylabel('Total # of athletes')
+plt.title('Age Distribution')
+plt.style.use('default')
+
+plt.savefig('Age_distribution1.png')
+plt.show()
+
+### Distribution of Athlete's age by sex
+
+age_female = sqldf('''SELECT Age
+                        FROM athletes_clean
+                        WHERE Sex = "F"''')
+
+age_male = sqldf('''SELECT Age
+                        FROM athletes_clean
+                        WHERE Sex = "M"''')
+#age_female
+#age_male
+
+plt.hist(age_male,
+        40,
+        range = [0, 80],
+        label = 'Male',
+        alpha = 0.4,
+        edgecolor = 'black',
+        color = 'Green')
+plt.hist(age_female,
+        40,
+        range = [0, 80],
+        label = 'Female',
+        alpha = 0.5,
+        edgecolor = 'black',
+        color = 'Purple')
+plt.legend()
+plt.xlabel('Age')
+plt.ylabel('Total # of athletes')
+plt.title('Age Distribution by Sex')
+plt.style.use('default')
+
+plt.savefig('Age_distribution_sex.png')
+plt.show()
+
+
+Women are younger in general when compared to male athletes.
+
+### SUMMER VS WINTER OLYMPIC GAMES
+
+season = athletes_clean.groupby(athletes_clean['Season'])
+print("Summer games")
+print(season.get_group("Summer").nunique())
+print("---")
+print("Winter games")
+print(season.get_group("Winter").nunique())
+
+# Create the percentages of each to create a graph
+
+total_season = sqldf('''SELECT Season, 
+                            COUNT (DISTINCT ID) AS number_of_athletes,
+                             COUNT(*) * 100.0 / SUM(COUNT(*)) over () AS ratio
+                        FROM athletes_clean 
+                        GROUP BY Season''')
+total_season
+
+fig3 = sns.barplot(data = total_season,
+                   x = 'Season',
+                   y = 'number_of_athletes',
+                  palette = "husl")
+
+fig3.set_xlabel('Season')
+fig3.set_ylabel('# of athletes')
+fig3.set_title('Total number of Athletes per Season')
+plt.savefig('summer_vs_winter.png')
+
+The summer Olympics have a much greater attendance of atheltes.
+
+# Summer Olympics
+
+summer_distribution = sqldf('''SELECT Sex,
+                        COUNT(*) * 100.00 / SUM(COUNT(*)) over () AS ratio
+                 FROM athletes_clean
+                 WHERE Season = 'Summer'
+                 GROUP BY Sex''')
+summer_distribution
+
+# Winter Olympics
+
+winter_distribution = sqldf('''SELECT Sex,        
+                        COUNT(*) * 100.00 / SUM(COUNT(*)) over () AS ratio
+                 FROM athletes_clean
+                 WHERE Season = 'Winter'
+                 GROUP BY Sex''')
+
+winter_distribution
+
+# make figure and assign axis objects
+fig4, (ax1, ax2, ax3) = plt.subplots(ncols = 3, figsize = (20, 10))
+plt.subplots_adjust(wspace=0)
+
+#Overall Distribution
+
+# pie chart parameters
+overall_ratios = total_season['ratio']
+labels = total_season['Season']
+explode = [0.1, 0]
+
+# rotate so that first wedge is split by the x-axis
+angle = -180 * overall_ratios[0]
+wedges, *_ = ax2.pie(overall_ratios, 
+                     autopct='%1.1f%%', 
+                     startangle=angle,
+                     labels=labels, 
+                     explode=explode,
+                     colors = sns.color_palette('Set2'),
+                     labeldistance = 0.4,
+                     pctdistance = 0.7,
+                     textprops = {'color': 'black', 'size': '16'})
+
+#Summer Olympics
+
+# Summer chart parameters
+summer_ratios = summer_distribution['ratio']/100.00
+summer_labels = summer_distribution['Sex']
+bottom = 1
+width = .2
+
+# Adding from the top matches the legend.
+for j, (height, label) in enumerate(reversed([*zip(summer_ratios, summer_labels)])):
+    bottom -= height
+    bc = ax1.bar(0, 
+                 height, 
+                 width, 
+                 bottom=bottom, 
+                 label=label, 
+                 alpha=0.1 + 0.25 * j,
+                color =['purple', 'red'])
+    ax1.bar_label(bc, labels=[f"{height:.0%}"], label_type='center', size = 16)
+
+ax1.set_title('Summer Sex Distribution')
+#ax1.legend()
+ax1.axis('off')
+ax1.set_xlim(- 2.5 * width, 2.5 * width)
+
+# use ConnectionPatch to draw lines between the two plots
+theta1, theta2 = wedges[1].theta1, wedges[1].theta2
+center, r = wedges[0].center, wedges[0].r
+bar_height = sum(summer_ratios)
+
+# draw top connecting line
+x = r * np.cos(np.pi / 180 * theta2) + center[0]
+y = r * np.sin(np.pi / 180 * theta2) + center[1]
+con = ConnectionPatch(xyA=(width / 2, bar_height), coordsA=ax1.transData,
+                      xyB=(x, y), coordsB=ax2.transData)
+con.set_color([0, 0, 0])
+con.set_linewidth(1)
+ax1.add_artist(con)
+
+# draw bottom connecting line
+x = r * np.cos(np.pi / 180 * theta1) + center[0]
+y = r * np.sin(np.pi / 180 * theta1) + center[1]
+con = ConnectionPatch(xyA=(width / 2, 0), coordsA=ax1.transData,
+                      xyB=(x, y), coordsB=ax2.transData)
+con.set_color([0, 0, 0])
+ax1.add_artist(con)
+con.set_linewidth(1)
+
+# Winter Olympics
+
+
+# Winter chart parameters
+winter_ratios = winter_distribution['ratio']/100.00
+winter_labels = winter_distribution['Sex']
+bottom = 1
+width = .2
+
+# Adding from the top matches the legend.
+for j, (height, label) in enumerate(reversed([*zip(winter_ratios, winter_labels)])):
+    bottom -= height
+    bc = ax3.bar(0, 
+                 height, 
+                 width, 
+                 bottom=bottom,  
+                 label=label, 
+                 alpha=0.1 + 0.25 * j,
+                color = ['purple', 'red'])
+    ax3.bar_label(bc, labels=[f"{height:.0%}"], label_type='center', size = 16)
+
+ax3.set_title('Winter Sex Distribution')
+ax3.legend()
+ax3.axis('off')
+ax3.set_xlim(- 2.5 * width, 2.5 * width)
+
+# use ConnectionPatch to draw lines between the two plots
+theta1, theta2 = wedges[1].theta1, wedges[1].theta2
+center, r = wedges[1].center, wedges[1].r
+bar_height = sum(winter_ratios)
+
+# draw top connecting line
+x = r * np.cos(np.pi / 180 * theta2) + center[0]
+y = r * np.sin(np.pi / 180 * theta2) + center[1]
+con = ConnectionPatch(xyA=(-width / 2, bar_height), coordsA=ax3.transData,
+                      xyB=(x, y), coordsB=ax2.transData)
+con.set_color([0, 0, 0])
+con.set_linewidth(1)
+ax3.add_artist(con)
+
+# draw bottom connecting line
+x = r * np.cos(np.pi / 180 * theta1) + center[0]
+y = r * np.sin(np.pi / 180 * theta1) + center[1]
+con = ConnectionPatch(xyA=(-width / 2, 0), coordsA=ax3.transData,
+                      xyB=(x, y), coordsB=ax2.transData)
+con.set_color([0, 0, 0])
+ax3.add_artist(con)
+con.set_linewidth(1)
+
+
+plt.show()
+plt.savefig('distribution_sex_season.png')
+
+When we compare Summer vs Winter Olympics, the sex distribution is similar. 
+However, winter Olympics have a slight higher representation of female atheltes.
+
+##SUMMER OLYMPICS
+
+summer_olympics = sqldf('''SELECT Sex,
+                                    AVG(Age),
+                                    AVG(Height),
+                                    AVG(Weight)
+                            FROM athletes_clean
+                            WHERE Season = "Summer"
+                            GROUP BY Sex''')
+
+summer_olympics
+
+## WINTER OLYMPICS
+
+winter_olympics = sqldf('''SELECT Sex,
+                                    AVG(Age),
+                                    AVG(Height),
+                                    AVG(Weight)
+                            FROM athletes_clean
+                            WHERE Season = "Winter"
+                            GROUP BY Sex''')
+
+winter_olympics
+
+There are significant differences between male and female participants not only in terms of expected height and weight, but also in terms of age. 
+The first two differences can be attributed to biology. 
+Although the latter may require more than just: it is worth considering social factors at the same time.
+
+Another interesting fact is that the age gap in the Winter Olympics is much smaller (~2.8 years old and 1.5 years old)
+
+# Medals by year by season
+
+summer_medals = sqldf('''SELECT Year,
+                                CAST (medal_count AS FLOAT)/total_count AS medal_ratio,
+                                CAST(gold_count AS FLOAT) / medal_count AS gold_ratio,
+                                CAST(silver_count AS FLOAT) / medal_count AS silver_ratio,
+                                CAST(bronze_count AS FLOAT) / medal_count AS bronze_ratio 
+                            FROM (
+                                 SELECT Year,
+                                 COUNT(*) AS total_count,
+                                 SUM(CASE
+                                     WHEN Medal IS NOT NULL THEN 1 ELSE 0
+                                     END) AS medal_count,
+                                SUM(CASE
+                                   WHEN Medal = "Gold" THEN 1 ELSE 0
+                                   END) AS gold_count,
+                                SUM(CASE
+                                   WHEN Medal = "Silver" THEN 1 ELSE 0
+                                   END) AS silver_count,
+                                SUM(CASE
+                                   WHEN Medal = "Bronze" THEN 1 ELSE 0
+                                   END) AS bronze_count
+                             FROM athletes_clean
+                             WHERE Season = 'Summer'
+                             GROUP BY Year) new_table''')
+
+summer_medals
+
+winter_medals = sqldf('''SELECT Year,
+                                CAST (medal_count AS FLOAT)/total_count AS medal_ratio,
+                                CAST(gold_count AS FLOAT) / medal_count AS gold_ratio,
+                                CAST(silver_count AS FLOAT) / medal_count AS silver_ratio,
+                                CAST(bronze_count AS FLOAT) / medal_count AS bronze_ratio 
+                            FROM (
+                                 SELECT Year,
+                                 COUNT(*) AS total_count,
+                                 SUM(CASE
+                                     WHEN Medal IS NOT NULL THEN 1 ELSE 0
+                                     END) AS medal_count,
+                                SUM(CASE
+                                   WHEN Medal = "Gold" THEN 1 ELSE 0
+                                   END) AS gold_count,
+                                SUM(CASE
+                                   WHEN Medal = "Silver" THEN 1 ELSE 0
+                                   END) AS silver_count,
+                                SUM(CASE
+                                   WHEN Medal = "Bronze" THEN 1 ELSE 0
+                                   END) AS bronze_count
+                             FROM athletes_clean
+                             WHERE Season = 'Winter'
+                             GROUP BY Year) new_table''')
+
+winter_medals
+
+plt.plot(summer_medals.Year, summer_medals.medal_ratio, color = "Orange", label = "Summer Olympics")
+plt.plot(winter_medals.Year, winter_medals.medal_ratio, color = "Green", label = "WinterOlympics")
+plt.style.use('default')
+plt.xlabel("Year")
+plt.ylabel("Medal Ratio")
+plt.legend()
+plt.savefig('medal_ratio_per_season.png')
+
+The distribution of medals between Winter and Summer Games has been normalised as years pass.
+
+fig, ax = plt.subplots(2)
+ax[0].plot(winter_medals.Year, winter_medals.gold_ratio, marker='', color='yellow', linewidth=4, label = "gold ratio")
+ax[0].plot(winter_medals.Year, winter_medals.silver_ratio, marker='', color='silver', linewidth=4, label = "silver ratio")
+ax[0].plot(winter_medals.Year, winter_medals.bronze_ratio, marker='', color='brown', linewidth=4, label = "bronze ratio")
+ax[0].legend(loc=1)
+ax[0].set_xlabel("Year")
+ax[0].set_ylabel("Medal Ratio")
+ax[0].set_title("Winter Olympics")
+ax[1].plot(summer_medals.Year, summer_medals.gold_ratio, marker='', color='yellow', linewidth=4, label = "gold ratio")
+ax[1].plot(summer_medals.Year, summer_medals.silver_ratio, marker='', color='silver', linewidth=4, label = "silver ratio")
+ax[1].plot(summer_medals.Year, summer_medals.bronze_ratio, marker='', color='brown', linewidth=4, label = "bronze ratio")
+plt.legend(loc=1)
+ax[1].set_xlabel("Year")
+ax[1].set_ylabel("Medal Ratio")
+ax[1].set_title("Summer Olympics")
+plt.tight_layout()
+
+plt.savefig('type_medal_per_year.png')
+
+Not taking into account earlier games, the distribution of gold, silver, and bronze medals is very similar.
+
+# Sports Played on the First Event
+
+game_list = sqldf('''SELECT DISTINCT(Sport)
+                    FROM athletes_clean
+                    ORDER BY Sport''')
+
+game_list1896 = sqldf('''SELECT DISTINCT(Sport)
+                    FROM athletes_clean
+                    WHERE Year = 1896
+                    ORDER BY Sport''')
+
+number_sports = sqldf('''SELECT Year,
+                                COUNT(DISTINCT Sport) AS count
+                            FROM athletes_clean
+                            GROUP BY Year''')
+
+number_sports_winter = sqldf('''SELECT Year,
+                                COUNT(DISTINCT Sport) AS count
+                            FROM athletes_clean
+                            WHERE Season = 'Winter'
+                            GROUP BY Year''')
+
+number_sports_summer = sqldf('''SELECT Year,
+                                COUNT(DISTINCT Sport) AS count
+                            FROM athletes_clean
+                            WHERE Season = 'Summer'
+                            GROUP BY Year''')
+
+game_list
+#game_list1896
+number_sports
+number_sports_summer
+number_sports_winter
+
+### Number of different sports played depending on the season and year
+
+x = number_sports['Year']
+y = number_sports['count']
+
+fig6 = plt.plot(x, 
+                y,
+               color = 'black')
+plt.xlabel("Year")
+plt.ylabel("Number of Sports")
+plt.title("Winter and Summer Olympics")
+plt.style.use('default')
+plt.savefig('number_sports.png')
+
+x = number_sports_summer['Year']
+y = number_sports_summer['count']
+
+plt.rcParams["figure.figsize"] = [7.50, 3.50]
+plt.rcParams["figure.autolayout"] = True
+overlapping = 0.150
+
+fig6 = plt.plot(x, 
+                y,
+                label = 'Summer Olympics',
+               color = 'Orange')
+
+z = number_sports_winter['Year']
+w = number_sports_winter['count']
+
+fig6 = plt.plot(z, 
+                w,
+               color = 'Green',
+               label = 'Winter Olympics')
+
+
+plt.xlabel("Year")
+plt.ylabel("Number of Sports")
+plt.legend()
+plt.title("Number of Sports played each Year")
+plt.style.use('default')
+
+plt.savefig('number_sports_winter.png')
+
+
+
+Overall, 66 Sports have been played in the olympics. 
+The trend is that, with the years, more games have been played in each seasson.
+
+We can appreciate that after 1990, there is a demarcation every 2-4 years. 
+This is something worth looking into. But it could be do to a separation of winter and summer olympics.
+
+### Cummulative number of Olympic Games as years pass
+
+season_year = sqldf('''SELECT Year,
+                            Season,
+                            CASE WHEN Season = 'Winter' THEN 1 ELSE 0 END AS winter_games,
+                             SUM(CASE WHEN Season = 'Winter' THEN 1 ELSE 0 END) 
+                                OVER (ORDER BY Year ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_winter,
+                            CASE WHEN Season = 'Summer' THEN 1 ELSE 0 END AS summer_games,
+                            SUM(CASE WHEN Season = 'Summer' THEN 1 ELSE 0 END) 
+                               OVER(ORDER BY Year ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_summer
+                        FROM athletes_clean
+                        GROUP BY Year, Season''')
+
+
+season_year
+
+x = season_year['Year']
+y = season_year['cum_summer']
+z = season_year['cum_winter']
+
+
+plt.rcParams["figure.figsize"] = [7.50, 3.50]
+plt.rcParams["figure.autolayout"] = True
+overlapping = 0.150
+
+#Summer Games
+fig71 = plt.plot(x, y, marker='', color='Orange', linewidth=4, label = "Summer Olympics")
+plt.xlabel("Year")
+plt.ylabel("Number of Games (Cumulative)")
+
+#Winter Games
+fig72 = plt.plot(x, z, marker='', color='Green', linewidth=4, label = "Winter Olympics")
+plt.xlabel("Year")
+plt.ylabel("Number of Games (Cumulative)")
+
+plt.legend()
+plt.title('Cummulative Number of Games Played')
+plt.style.use('default')
+
+plt.savefig('cummulative_games.png')
+
+The distribution of winter games has changed over the years, starting in 1924
+
+##  BEYOND DESCRIPTIVE ANALYTICS
+
+### Medal Analysis by Year and Season
+
+medal_count = sqldf('''SELECT Year,
+                                Season,
+                                COUNT(*) AS total_count,
+                                SUM(CASE
+                                    WHEN Medal IS NOT NULL THEN 1 ELSE 0 END) AS medal_count,
+                                SUM(CASE
+                                    WHEN Medal = 'Gold' THEN 1 ELSE 0 END) AS gold_count,
+                                SUM(CASE
+                                    WHEN Medal = 'Silver' THEN 1 ELSE 0 END) AS silver_count,
+                                SUM(CASE
+                                    WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS bronze_count
+                            FROM athletes_clean
+                            GROUP BY Year, Season ''')
+
+medal_count
+
+summer_medal_count = sqldf('''
+                         SELECT Year,
+                                 COUNT(*) AS total_count,
+                                 SUM(CASE
+                                   WHEN Medal IS NOT NULL THEN 1 ELSE 0 END) AS medal_count,
+                                   SUM(CASE WHEN Medal = "Gold" THEN 1 ELSE 0 END) AS gold_count,
+                                   SUM(CASE WHEN Medal = "Silver" THEN 1 ELSE 0 END) AS silver_count,
+                                   SUM(CASE WHEN Medal = "Bronze" THEN 1 ELSE 0 END) AS bronze_count
+                                FROM athletes_clean
+                                WHERE Season = 'Summer'
+                                GROUP BY Year 
+                                   ''')
+summer_medal_count
+
+summer_medal_count_new = summer_medal_count[7:]
+
+summer_medal_count_new
+
+winter_medal_count = sqldf('''
+                         SELECT Year,
+                                 COUNT(*) AS total_count,
+                                 SUM(CASE
+                                   WHEN Medal IS NOT NULL THEN 1 ELSE 0 END) AS medal_count,
+                                   SUM(CASE WHEN Medal = "Gold" THEN 1 ELSE 0 END) AS gold_count,
+                                   SUM(CASE WHEN Medal = "Silver" THEN 1 ELSE 0 END) AS silver_count,
+                                   SUM(CASE WHEN Medal = "Bronze" THEN 1 ELSE 0 END) AS bronze_count
+                                FROM athletes_clean
+                                WHERE Season = 'Winter'
+                                GROUP BY Year 
+                                   ''')
+winter_medal_count
+
+For correlation analysis we will discard summer data pre 1924 as there is no Winter equivalent
+
+# Total Medal Correlation
+
+total_medal_correlation = pd.DataFrame({'Summer_Total': summer_medal_count_new['medal_count'], 
+                                        'Winter_Total': winter_medal_count['medal_count'],
+                                       'Summer_Gold': summer_medal_count_new['gold_count'],
+                                       'Winter_Gold': winter_medal_count['gold_count'],
+                                       'Summer_Silver': summer_medal_count_new['silver_count'],
+                                       'Winter_Silver': winter_medal_count['silver_count'],
+                                       'Summer_Bronze': summer_medal_count_new['bronze_count'],
+                                       'Winter_Bronze': winter_medal_count['bronze_count']})
+corr_matrix = total_medal_correlation.corr(method = 'spearman')  
+corr_matrix
+
+mask = np.zeros_like(corr_matrix, dtype = bool)
+mask[np.triu_indices_from(mask)] = True
+corr_matrix[mask] = np.nan
+(corr_matrix
+     .style.background_gradient(cmap ='coolwarm', axis = None, vmin = 0.9, vmax = 1)
+     .highlight_null(color = '#f1f1f1')
+     .set_precision(2))
+plt.savefig('correlation_medal_counts1.pdf')
+
+ax = sns.heatmap(corr_matrix,
+            annot = True,
+            cbar = True,
+           cmap = sns.cubehelix_palette(as_cmap=True),
+           vmin = 0.90,
+           vmax = 1.00)
+
+ax.xaxis.tick_top()
+plt.xticks(rotation = 45, ha = 'left')
+ax.set_title('Correlation between Medal Counts')
+plt.tight_layout()
+plt.savefig('correlation_medal_counts.jpeg')
+plt.show()
+
+
+The Pearon correlation coefficient between the total number of medals in the winter and summer olympics from 1924 to 2016, is 0.94, which is highly positive. Therefore, the performance of a country in winter olympics is highly correlated to that in summer olympics
+
+I will then calculate the standard deviation in country performance through years. A Comparison between average std of Winter and that of Summer Olympics will help.
+
+# Standard Deviation Calculation
+
+x_simple = winter_medal_count.medal_count
+y_simple = summer_medal_count_new.medal_count
+
+std_medal_count_summer_olympics = np.std(y_simple)
+std_medal_count_winter_olympics = np.std(x_simple)
+
+print("std_medal_count_summer_olympics =",std_medal_count_summer_olympics)
+print("std_medal_count_winter_olympics =",std_medal_count_winter_olympics)
+
+
+### Appearances by country
+
+## Top 20 Countries with Most Appearances
+
+appearances_country = sqldf('''SELECT Team,
+                                        COUNT(Team) AS country_appearance
+                                FROM athletes_clean
+                                GROUP BY Team
+                                ORDER BY country_appearance DESC''')
+
+appearances_country
+
+appearances_country = sqldf('''SELECT Team,
+                                        COUNT(Team) AS country_appearance
+                                FROM athletes_clean
+                                GROUP BY Team
+                                ORDER BY country_appearance DESC
+                                LIMIT 20''')
+
+fig = plt.bar(appearances_country['Team'],
+             appearances_country['country_appearance'])
+plt.xlabel('Team')
+plt.ylabel('# of appearances')
+plt.xticks(rotation = 45, ha = 'right')
+plt.title('Top 20 countries (appearance)')
+plt.savefig('top_20_appearance.png')
+plt.show()
+
+### Medals by Country
+
+country_medals = sqldf('''SELECT Team,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1
+                                    WHEN Medal = 'Silver' THEN 1
+                                    WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Total,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1 ELSE 0 END) AS Gold_medals,
+                                SUM(CASE WHEN Medal = 'Silver' THEN 1 ELSE 0 END) AS Silver_medals,
+                                SUM(CASE WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Bronze_medals
+                            FROM athletes_clean
+                            GROUP BY Team
+                            ORDER BY 2 DESC''')
+
+country_medals
+
+country_medals = sqldf('''SELECT Team,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1
+                                    WHEN Medal = 'Silver' THEN 1
+                                    WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Total,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1 ELSE 0 END) AS Gold_medals,
+                                SUM(CASE WHEN Medal = 'Silver' THEN 1 ELSE 0 END) AS Silver_medals,
+                                SUM(CASE WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Bronze_medals
+                            FROM athletes_clean
+                            GROUP BY Team
+                            ORDER BY 2 DESC
+                            LIMIT 20''')
+
+fig = plt.bar(country_medals['Team'],
+             country_medals['Total'])
+plt.xlabel('Team')
+plt.ylabel('Total # of Medals')
+plt.xticks(rotation = 45, ha = 'right')
+plt.title('Top 20 countries (medals)')
+plt.savefig('top_20_medals.png')
+plt.show()
+
+### Correlation between number of appearances and number of medals
+
+corr_table = sqldf('''SELECT a.Team,
+                        a.Total AS medals,
+                        b.country_appearance
+                    FROM country_medals a
+                    INNER JOIN appearances_country b
+                        ON a.Team = b.Team''')
+corr_table
+
+corr_matrix = corr_table.corr(method = 'spearman')  
+corr_matrix
+
+mask = np.zeros_like(corr_matrix, dtype = bool)
+mask[np.triu_indices_from(mask)] = True
+corr_matrix[mask] = np.nan
+(corr_matrix
+     .style.background_gradient(cmap ='coolwarm', axis = None, vmin = 0.9, vmax = 1)
+     .highlight_null(color = '#f1f1f1')
+     .set_precision(2))
+
+There is not a strong correlation between the number of appearances and the number of medals. 
+Is there maybe an interference with the Winter Olympics data? We will then explore this for only the Summer Olympics.
+
+country_medals_summer = sqldf('''SELECT Team,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1
+                                    WHEN Medal = 'Silver' THEN 1
+                                    WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Total,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1 ELSE 0 END) AS Gold_medals,
+                                SUM(CASE WHEN Medal = 'Silver' THEN 1 ELSE 0 END) AS Silver_medals,
+                                SUM(CASE WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Bronze_medals
+                            FROM athletes_clean
+                            WHERE Season = 'Summer'
+                            GROUP BY Team
+                            ORDER BY 2 DESC''')
+
+country_medals_summer
+
+appearances_country_summer = sqldf('''SELECT Team,
+                                        COUNT(Team) AS country_appearance
+                                FROM athletes_clean
+                                WHERE Season = 'Summer'
+                                GROUP BY Team
+                                ORDER BY country_appearance DESC''')
+
+corr_table_summer = sqldf('''SELECT a.Team,
+                        a.Total AS Medals,
+                        b.country_appearance
+                    FROM country_medals_summer a
+                    INNER JOIN appearances_country_summer b
+                        ON a.Team = b.Team''')
+corr_table
+
+corr_matrix = corr_table_summer.corr(method = 'spearman')  
+corr_matrix
+
+mask = np.zeros_like(corr_matrix, dtype = bool)
+mask[np.triu_indices_from(mask)] = True
+corr_matrix[mask] = np.nan
+(corr_matrix
+     .style.background_gradient(cmap ='coolwarm', axis = None, vmin = 0.9, vmax = 1)
+     .highlight_null(color = '#f1f1f1')
+     .set_precision(2))
+
+There is less of a correlation!!!!
+
+country_medals_winter = sqldf('''SELECT Team,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1
+                                    WHEN Medal = 'Silver' THEN 1
+                                    WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Total,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1 ELSE 0 END) AS Gold_medals,
+                                SUM(CASE WHEN Medal = 'Silver' THEN 1 ELSE 0 END) AS Silver_medals,
+                                SUM(CASE WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Bronze_medals
+                            FROM athletes_clean
+                            WHERE Season = 'Winter'
+                            GROUP BY Team
+                            ORDER BY 2 DESC''')
+
+country_medals_winter
+
+appearances_country_winter = sqldf('''SELECT Team,
+                                        COUNT(Team) AS country_appearance
+                                FROM athletes_clean
+                                WHERE Season = 'Winter'
+                                GROUP BY Team
+                                ORDER BY country_appearance DESC''')
+
+corr_table_winter = sqldf('''SELECT a.Team,
+                        a.Total AS Medals,
+                        b.country_appearance
+                    FROM country_medals_winter a
+                    INNER JOIN appearances_country_winter b
+                        ON a.Team = b.Team''')
+corr_table_winter
+
+corr_matrix = corr_table_winter.corr(method = 'spearman')  
+corr_matrix
+
+mask = np.zeros_like(corr_matrix, dtype = bool)
+mask[np.triu_indices_from(mask)] = True
+corr_matrix[mask] = np.nan
+(corr_matrix
+     .style.background_gradient(cmap ='coolwarm', axis = None, vmin = 0.9, vmax = 1)
+     .highlight_null(color = '#f1f1f1')
+     .set_precision(2))
+
+### Correlation between number of females in a team and performance
+
+#Medals per Athlete
+
+female_athletes = sqldf('''SELECT Sex,
+                                COUNT(DISTINCT Name) AS Total_athletes,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1
+                                    WHEN Medal = 'Silver' THEN 1
+                                    WHEN Medal = 'Bronze' THEN 1 ELSE 0 END)* 100/COUNT(DISTINCT Name) AS Total_medals,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1 ELSE 0 END) * 100/COUNT(DISTINCT Name) AS Gold_medals,
+                                SUM(CASE WHEN Medal = 'Silver' THEN 1 ELSE 0 END) * 100/COUNT(DISTINCT Name) AS Silver_medals,
+                                SUM(CASE WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) * 100/COUNT(DISTINCT Name) AS Bronze_medals
+                            FROM athletes_clean
+                            WHERE Sex = "F"''')
+
+female_athletes
+
+# Medals Per Athlete
+
+male_athletes = sqldf('''SELECT Sex,
+                                COUNT(DISTINCT Name) AS Total_athletes,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1
+                                    WHEN Medal = 'Silver' THEN 1
+                                    WHEN Medal = 'Bronze' THEN 1 ELSE 0 END)* 100/COUNT(DISTINCT Name) AS Total_medals,
+                                SUM(CASE WHEN Medal = 'Gold' THEN 1 ELSE 0 END) * 100/COUNT(DISTINCT Name) AS Gold_medals,
+                                SUM(CASE WHEN Medal = 'Silver' THEN 1 ELSE 0 END) * 100/COUNT(DISTINCT Name) AS Silver_medals,
+                                SUM(CASE WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) * 100/COUNT(DISTINCT Name) AS Bronze_medals
+                            FROM athletes_clean
+                            WHERE Sex = "M"''')
+
+male_athletes
+
+Medal data was normalised per total number of individual athletes and per sex.
+
+33% of female athletes won a medal distributed equally among metal type (11% per type).
+Surprisingly, only 28% of male athletes won a medal, distributed equally among medal typesd (9% per type)
+
+medals_per_athlete = sqldf('''SELECT *
+                                FROM female_athletes
+                                UNION
+                                SELECT *
+                                FROM male_athletes''')
+
+medals_per_athlete
+
+medals_per_athlete1 = medals_per_athlete.drop(["Total_medals", "Gold_medals", "Silver_medals", "Bronze_medals"], 
+                                              axis = 'columns')
+
+medals_per_athlete2 = medals_per_athlete.drop(["Total_athletes", "Gold_medals", "Silver_medals", "Bronze_medals"], 
+                                              axis = 'columns')
+medals_per_athlete2
+
+
+plt.figure(figsize=(15, 8))
+ax = sns.barplot(medals_per_athlete2,
+                x = 'Sex',
+                y = 'Total_medals')
+ax.set(ylim = (0, 50))
+ax.bar_label(ax.containers[0], size = 16) 
+ax.set_ylabel('Percentage of athletes with medal')
+ax.set_title('Percentage of athletes with medals within their Sex Group')
+
+plt.tight_layout()
+plt.style.use('bmh')
+plt.savefig('athlete_with_medals.jpeg')
+plt.show()
+
+
+## Number of medals by organising country
+
+org = sqldf('''SELECT  Team,
+                        COUNT(DISTINCT Name) AS Total_athletes,
+                        SUM(CASE WHEN Medal = 'Gold' THEN 1
+                                WHEN Medal = 'Silver' THEN 1
+                                WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Medals ''')

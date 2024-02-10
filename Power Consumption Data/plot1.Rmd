@@ -1,0 +1,126 @@
+---
+title: "Electric Power Consumption"
+author: "Macarena L. Fernandez Carro"
+date: "2024-02-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## INTRODUCTION
+
+This assignment uses data from the UC Irvine Machine Learning Repository, a popular repository for machine learning datasets. In particular, we will be using the “Individual household electric power consumption Data Set” which I have made available on the course web site:
+
+- Dataset: Electric power consumption [20Mb]
+- Description: Measurements of electric power consumption in one household with a one-minute sampling rate over a period of almost 4 years. Different electrical quantities and some sub-metering values are available.
+
+The following descriptions of the 9 variables in the dataset are taken from the UCI web site:
+
+- Date: Date in format dd/mm/yyyy
+- Time: time in format hh:mm:ss
+- Global_active_power: household global minute-averaged active power (in kilowatt)
+- Global_reactive_power: household global minute-averaged reactive power (in kilowatt)
+- Voltage: minute-averaged voltage (in volt)
+- Global_intensity: household global minute-averaged current intensity (in ampere)
+- Sub_metering_1: energy sub-metering No. 1 (in watt-hour of active energy). It corresponds to the kitchen, containing mainly a dishwasher, an oven and a microwave (hot plates are not electric but gas powered).
+- Sub_metering_2: energy sub-metering No. 2 (in watt-hour of active energy). It corresponds to the laundry room, containing a washing-machine, a tumble-drier, a refrigerator and a light.
+- Sub_metering_3: energy sub-metering No. 3 (in watt-hour of active energy). It corresponds to an electric water-heater and an air-conditioner.
+
+```{R}
+# Set working directory from the side pane
+# Load libraries
+
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(skimr)
+library(lubridate)
+library(egg)
+library(forcats)
+library(purrr)
+library(readr)
+library(stringr)
+library(tibble)
+library(here)
+library(janitor)
+library(viridis)
+library(corrplot)
+library(cowplot)
+library(scales)
+library(RColorBrewer)
+library(waffle)
+library(reshape)
+library(reshape2)
+library(ggrepel)
+library(ggpubr)
+library(magrittr)
+
+# Creating a folder for data storage
+
+if(!file.exists("Data")){
+  dir.create("Data")
+}
+```
+
+# Reading the Data
+
+The Data file is a text file with data separated by semicolons (;).
+
+```{R}
+
+# Read File 
+
+power_consumption <- read.table(file = "household_power_consumption.txt",
+                                header = TRUE,
+                                sep = ";",
+                                stringsAsFactors = FALSE,
+                                na.strings = "?",
+                                nrows = 2075259,
+                                check.names = FALSE,
+                                colClasses = c(character(),
+                                               character(),
+                                               numeric(),
+                                               numeric(),
+                                               numeric(),
+                                               numeric(),
+                                               numeric(),
+                                               numeric(),
+                                               numeric()))
+
+
+```
+# FIltering the Data
+
+We will only use data from 01-02-2007 and 02-02-2007
+
+```{R}
+power_consumption_tidy <- power_consumption %>%
+    
+    # Converging character into Date.
+    mutate(Date = as.Date(Date, "%d/%m/%Y")) %>%
+    
+    # Filtering observations between 2007-02-01 and 2007-02-02.
+    filter(Date >= "2007-02-01" & Date <= "2007-02-02")
+```
+
+Our goal is to examine how household energy usage varies over a 2-day period in February 2007.
+
+```{R}
+#Creating a Histogram
+
+png(filename = "./plot1.png",
+    width = 480,
+    height = 480,
+    units = "px",
+    bg = "white")
+
+hist(x = power_consumption_tidy$Global_active_power,
+     col = "red",
+     main = "Global Active Power",
+     xlab = "Global Active Power (kW)")
+
+dev.off()
+
+```

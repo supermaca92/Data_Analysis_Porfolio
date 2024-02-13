@@ -1,0 +1,349 @@
+---
+title: "Activity Monitoring Data"
+author: "Macarena L. Fernandez Carro"
+date: "2024-02-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# INTRODUCTION
+
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a 
+Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the “quantified self” movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The variables included in this dataset are:
+
+- **steps** --> Number of steps taking in a 5-minute interval (missing values are coded as **NA**)
+- **date** --> the date on which the measurement was taken in YYYY-MM-DD format.
+- **interval** --> identifier for the 5-minute interval in which measurement was taken.
+
+The dataset is stored in a CSV file and there are a total of 17,568 observations in the dataset.
+
+# ASSIGNMENT
+
+This assignment will be described in multiple parts. You will need to write a report that answers the questions detailed below. Ultimately, you will need to complete the entire assignment in a single R markdown document that can be processed by knitr and be transformed into an HTML file.
+
+Throughout your report make sure you always include the code that you used to generate the output you present. When writing code chunks in the R markdown document, always use echo = TRUE so that someone else will be able to read the code. This assignment will be evaluated via peer assessment so it is essential that your peer evaluators be able to review the code for your analysis.
+
+For the plotting aspects of this assignment, feel free to use any plotting system in R (i.e., base, lattice, ggplot2)
+
+Fork/clone the GitHub repository created for this assignment. You will submit this assignment by pushing your completed files into your forked repository on GitHub. The assignment submission will consist of the URL to your GitHub repository and the SHA-1 commit ID for your repository state.
+
+Questions to be answered:
+
+- What is mean total number of steps taken per day?
+- What is the average daily activity pattern?
+- Imputing missing values
+- Are there differences in activity patterns between weekdays and weekends?
+
+# SETTING GLOBAL OPTIONS
+
+```{R}
+library(ggplot2)
+library(knitr)
+library(tidyr)
+library(dplyr)
+
+knitr::opts_chunk$set(echo = TRUE,
+                     warning = FALSE,
+                     fig.width = 10,
+                     fig.height = 5,
+                     fig.keep = "all",
+                     dev = "png")
+```
+#GETTING THE DATA AND PRE-PROCESSING
+```{R}
+# Reading the data
+
+activity <- read.csv("activity.csv")
+
+activity$date <- as.POSIXct(activity$date, "%Y%m%d")
+
+# Add a column with the days of the week (from the date column)
+
+activity$day <- weekdays(activity$date)
+
+summary(activity)
+
+```
+
+# QUESTIONS
+## QUESTION 1:
+
+What is the **mean** total number of steps taken per day?
+
+```{R}
+
+#Calculate the total number of steps 
+
+TotalSteps <- data.frame(with(activity, 
+                              aggregate(steps,
+                                        by = list(date),
+                                        sum,
+                                        na.rm = TRUE)))
+#Give more meaningful names
+
+names(TotalSteps) <- c("Date", "Steps")
+
+# Plot a histogram of total steps
+
+ggplot(TotalSteps,
+       aes(x = Steps)) +
+  geom_histogram(breaks = seq(0,
+                              25000,
+                              by = 1000),
+                 fill = "pink",
+                 col = "purple") +
+  xlab("Steps") +
+  ylab("Frequency")+
+  ggtitle("Total number of steps (by Day)") +
+  scale_y_continuous(expand = c(0, 0),
+                     limits = c(0, 15)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_classic()
+ggsave("question1.png")
+
+# Mean steps
+
+mean(TotalSteps$Steps)
+median(TotalSteps$Steps)
+
+#Mark Mean and median on the histogram
+
+ggplot(TotalSteps,
+       aes(x = Steps)) +
+  geom_histogram(breaks = seq(0,
+                              25000,
+                              by = 1000),
+                 fill = "pink",
+                 col = "purple") +
+  xlab("Steps") +
+  ylab("Frequency")+
+  labs(title = "Total number of steps",
+        subtitle = "(by Day)") +
+  scale_y_continuous(expand = c(0, 0),
+                     limits = c(0, 15)) +
+  #scale_x_continuous(expand = c(0, 0)) +
+  geom_vline(aes(xintercept = mean(Steps)),
+             col = "black",
+             size = 1) +
+  geom_vline(aes(xintercept = median(Steps)),
+             col = "grey",
+             size = 1) +
+  scale_color_manual(name = "Stats",
+                     values = c("Mean" = "black",
+                                "Median" = "grey")) +
+  annotate("text",
+           label = "Mean",
+           x = 8000,
+           hjust = 0,
+           y = Inf,
+           vjust = 2,
+           color = "black") +
+   annotate("text",
+           label = "Median",
+           x = 10500,
+           hjust = 0,
+           y = Inf,
+           vjust = 2,
+           color = "grey") +
+  theme_classic()
+ggsave("question1-1.png")
+
+```
+## QUESTION 2:
+
+
+What is the average daily activity pattern?
+
+```{R}
+# Calculate the average of steps by interval
+
+DailyAverage <- data.frame(aggregate(activity$steps,
+                                     by = list(activity$interval),
+                                     FUN = mean,
+                                     na.rm = TRUE))
+
+# More menaingful names
+
+names(DailyAverage) = c("Interval",
+                        "Mean")
+
+# Plot a line graph
+
+ggplot(DailyAverage,
+       aes(Interval,
+           Mean)) +
+  geom_line(col = "darkmagenta") +
+  labs(title = "Average number of Steps",
+       subtitle = "(Per Interval)",
+       x = "Interval",
+       y = "Avg. Number of Steps") +
+  theme_classic()
+ggsave("plot2.png")
+```
+
+## QUESTION 3:
+
+Inputting missing values
+
+```{R}
+# Calculate the total number of missing values
+
+sum(is.na(activity$steps))
+```
+We are going to follow two different routes:
+
+1. Assume that no data input means 0 steps.
+2. Add the median for that day.
+3. Add the mean for that day
+
+
+```{R}
+# NAs into 0 
+Activity1 <- activity %>%
+              mutate_all(funs(ifelse(is.na(.), 0, .)))
+
+Activity1$date <- as.POSIXct(activity$date, "%Y%m%d")
+
+
+# Match the mean of daily activity with the missing values
+
+meanSteps <- DailyAverage$Mean[match(activity$interval,
+                                         DailyAverage$Interval)]
+
+# NAs into the mean of that day
+
+activity2 <- transform(activity,
+                       steps = ifelse(is.na(activity$steps),
+                                      yes = meanSteps,
+                                      no = activity$steps))
+
+# NAs into the median of that day
+DailyMedian <- data.frame(aggregate(activity$steps,
+                                     by = list(activity$interval),
+                                     FUN = median,
+                                     na.rm = TRUE))
+
+names(DailyMedian) = c("Interval",
+                        "Median")
+
+medianSteps <- DailyMedian$Median[match(activity$interval,
+                                        DailyAverage$Interval)]
+
+activity3 <- transform(activity,
+                       steps = ifelse(is.na(activity$steps),
+                                      yes = medianSteps,
+                                      no = activity$steps))
+# Checking for na
+
+sum(is.na(Activity1))
+sum(is.na(activity2))
+sum(is.na(activity3))
+
+# Plot the graphs
+
+Activity1plot <- data.frame(aggregate(steps ~ date,
+                                      Activity1,
+                                      sum))
+activity2plot <- data.frame(aggregate(steps ~ date,
+                                      activity2,
+                                      sum))
+activity3plot <- data.frame(aggregate(steps ~ date,
+                                      activity3,
+                                      sum))
+
+ggplot(Activity1plot,
+       aes(x = steps)) +
+  geom_histogram(breaks = seq(0,
+                              25000,
+                              by = 1000),
+                 fill = "pink",
+                 col = "purple") +
+  xlab("Steps") +
+  ylab("Frequency")+
+  labs(title = "Total number of steps",
+        subtitle = "(NA = 0)") +
+  scale_y_continuous(expand = c(0, 0),
+                     limits = c(0, 15)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_classic()
+ggsave("question3-1.png")
+
+ggplot(activity2plot,
+       aes(x = steps)) +
+  geom_histogram(breaks = seq(0,
+                              25000,
+                              by = 1000),
+                 fill = "blue",
+                 col = "darkblue") +
+  xlab("Steps") +
+  ylab("Frequency")+
+  labs(title = "Total number of steps",
+        subtitle = "(NA = Mean)") +
+  scale_y_continuous(expand = c(0, 0),
+                     limits = c(0, 15)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_classic()
+ggsave("question3-2.png")
+
+ggplot(activity3plot,
+       aes(x = steps)) +
+  geom_histogram(breaks = seq(0,
+                              25000,
+                              by = 1000),
+                 fill = "red",
+                 col = "darkred") +
+  xlab("Steps") +
+  ylab("Frequency")+
+  labs(title = "Total number of steps",
+        subtitle = "(NA = Median)") +
+  scale_y_continuous(expand = c(0, 0),
+                     limits = c(0, 15)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_classic()
+ggsave("question3-3.png")
+
+```
+## QUESTION 4:
+
+Are there differences in activity patterns between weekdays and weekends?
+
+```{R}
+# Adding day type
+
+activity$dayType <- ifelse(activity$day %in% 
+                             c("Saturday", "Sunday"),
+                           "Weekend",
+                           "Weekday")
+
+# Create dataframe
+
+ActivityByDay <- aggregate(steps ~ interval + dayType,
+                           activity,
+                           mean,
+                           na.rm = TRUE)
+
+# Plot
+
+ggplot(ActivityByDay,
+       aes(x = interval,
+           y = steps,
+           color = dayType)) +
+  geom_line() +
+  labs(title = "Average Daily Step Count",
+       subtitle = "By Day Type",
+       x = "Interval",
+       y = "Avg. Steps") +
+  facet_wrap(~dayType,
+             ncol = 1,
+             nrow = 2) +
+  scale_color_discrete(name = "Day Type") +
+  theme_classic()
+ggsave("question4.png")
+```

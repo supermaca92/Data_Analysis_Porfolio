@@ -3,5 +3,6 @@
 *.rmd  linguist-detectable
 *.Rmd  linguist-detectable
 *.Rmd linguist-language=R
+*.[Rr]md  linguist-detectable
 *.sql linguist-detectable=true
 *.sql linguist-language=sql

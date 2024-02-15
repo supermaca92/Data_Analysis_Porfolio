@@ -1,0 +1,115 @@
+---
+title: "Ggplot2 Exercises - 2"
+Author: Macarena L. Fernandez Carro
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+######DO NOT MODIFY. This will load required packages and data.
+
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+cces <- drop_na(read_csv(url("https://www.dropbox.com/s/ahmt12y39unicd2/cces_sample_coursera.csv?raw=1")))
+```
+
+Your objective is to replicate these figures, created using the Cooperative Congressional Election Study data. These figures are similar to those we completed in the lecture videos.
+
+### Put your name here: Macarena
+
+
+
+## Exercise 1
+
+Hints:
+
+* For the x-axis, use the variable "ideo5".
+
+* Make sure you recode the data for the "ideo5" variable to generate the correct names for the x-axis. You will want to consult the codebook.
+
+* Use the fill aesthetic to have R fill in the bars. You do not need to set the colors manually.
+
+* Use guides() to drop the legend.
+
+* Make sure the axis labels and figure title are correct.
+
+
+```{r exercise1,echo=FALSE}
+cces$ideo5[cces$ideo5 == 1] <- "Very Liberal"
+cces$ideo5[cces$ideo5 == 2] <- "Liberal"
+cces$ideo5[cces$ideo5 == 3] <- "Moderate"
+cces$ideo5[cces$ideo5 == 4] <- "Conservative"
+cces$ideo5[cces$ideo5 == 5] <- "Very Conservative"
+names(cces)[11] <- paste("Ideology")
+
+cces$pew_religimp[cces$pew_religimp == 1] <- "Very Imp."
+cces$pew_religimp[cces$pew_religimp == 2] <- "Somewhat Imp."
+cces$pew_religimp[cces$pew_religimp == 3] <- "Not too Imp."
+cces$pew_religimp[cces$pew_religimp == 4] <- "Not at all Imp."
+
+ggplot(cces) +
+  geom_bar(aes(x = Ideology,
+               fill = Ideology)) +
+  theme(legend.position = "none") +
+  labs(title = "Respondent Ideology",
+       x = "Ideology",
+       y = "Count")
+```
+
+## Exercise 2
+
+Hints:
+
+* For the x-axis, use the variable "pew_religimp".
+
+* Make sure you recode the data for the "pew_religimp" variable to generate the correct labels for the x-axis. You will want to consult the codebook.
+
+* Rename the column for Ideology to make sure the first letter is upper-case (to make the legend appear correctly).
+
+* Use the fill aesthetic to have R fill in the bars. You do not need to set the colors manually.
+
+* Make sure the axis labels and figure title are correct.
+
+```{r exercise2,echo=FALSE}
+ggplot(cces) +
+  geom_bar(aes(x = pew_religimp,
+               fill = Ideology))+
+  labs(title = "Importance of Religion by Ideology",
+       x = "Importance of Religion",
+       y = "Count")
+```
+
+## Exercise 3
+
+Instructions:
+
+* For this visualization, you are creating your own data for practice.
+
+* Create a tibble/data frame with three columns: Semester, Student, and Grade.
+
+* There should be six semesters and three students (Amanda, Betty, and Carol)
+
+* Create grades for the students using the runif() command, with values between 80 and 100. Hint: you'll need 18 grades total.
+
+The figure should look approximately like this (your vaules will be slightly different):
+
+
+```{r exercise3,echo=FALSE}
+set.seed(1234)
+
+Grades <- 
+  tibble(
+    Semester = 1:6 %>% rep(times = 3),
+    Student = c("Amada", "Betty", "Carol") %>% rep(each = 6),
+    Grade = runif(18, 80, 100)
+  )
+Grades
+
+ggplot(Grades) +
+  geom_line(aes(x = Semester,
+                y = Grade,
+                color = Student)) +
+  facet_wrap(~Student) +
+  theme(legend.position = "none")
+
+```

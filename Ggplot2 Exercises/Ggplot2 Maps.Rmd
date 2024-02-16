@@ -1,0 +1,130 @@
+---
+title: "Spatial Figures Peer Review"
+output: html_document
+---
+## Macarena Fernandez Carro
+
+## Problem 1
+
+Create the following figure, using the data included in the R Markdown file.
+
+```{r problem_1_data,include=TRUE}
+# PACKAGES
+
+library(tidyverse)
+library(maps)
+library(ggplot2)
+library(ggrepel)
+library(mapproj)
+library(sf)
+library(cartography)
+library(mapsf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+sessionInfo()
+```
+```{r include=FALSE}
+
+####make some data for painting the map
+
+my_world_map <- map_data("world")
+countries <- unique(my_world_map$region)
+
+set.seed(987)
+some_data_values <- data.frame(
+
+  "region"=countries,
+  
+  "Score"=runif(252,0,100))
+
+```
+
+```{r problem_1,echo=TRUE,message=FALSE}
+
+plot <- my_world_map %>%
+  left_join(some_data_values) %>%
+  select(long,
+         lat,
+         region,
+         group,
+         Score)
+
+ggplot(data = plot,
+               aes(x = long, 
+                   y = lat)) +
+  geom_polygon(aes(group = group,
+                   fill = Score)) + 
+  scale_fill_distiller(palette= "Greens") + 
+  coord_quickmap()
+```
+
+## Problem 2
+
+Create the following figure, using the data included in the R Markdown file.
+
+
+```{r problem_2_data,include=FALSE}
+
+#####DO NOT MODIFY THIS CHUNK
+set.seed(15)
+Measurement<-rnorm(32,50,1)
+```
+
+
+```{r solution_p2,echo=TRUE,message=FALSE}
+
+world <- map_data("world")
+CentralAmerica1 <- filter(world,region=="Costa Rica"|
+                            region=="Nicaragua"|
+                            region=="Panama")
+my_cities <-maps::world.cities
+CA_big_cities <- filter(my_cities,country.etc=="Costa Rica"|
+                            country.etc=="Nicaragua"|
+                            country.etc=="Panama",pop>40000)
+add_column(CA_big_cities,Measurement)
+
+ggplot(data = CentralAmerica1, 
+       mapping = aes(x= long,
+                     y= lat,
+                     group =group))+
+  geom_polygon(color="black",
+               fill="white") +
+   geom_point(data = CA_big_cities,
+              aes(x=long,
+                  y=lat,
+                  group=NULL,
+                  color=Measurement),
+             size=5, 
+             alpha=.8) +
+  scale_size_continuous() +
+  scale_color_distiller(palette= "Oranges") +
+  theme_classic() +
+   theme(axis.text.x = element_blank(),axis.text.y=element_blank(),
+        axis.line = element_blank(),axis.ticks = element_blank())+
+  labs(x="",y="", title="Panama, Nicaragua, & Costa Rica major cities", 
+  caption ="Population > 40,000")
+```
+
+## Problem 3
+
+Create the following figure, using the data included in the R Markdown file.
+
+Note that the code in the .rmd file will import a set of simple features data for South America. Make sure you install any necessary packages. 
+
+```{r problem_3_data,include=FALSE}
+####DO NOT MODIFY
+s_america<-ne_countries(scale="medium",continent='south america',returnclass="sf")
+
+```
+
+```{r problem3,echo=TRUE}
+
+ggplot()+
+  geom_sf(data= s_america,
+          aes(fill=pop_est))+
+  scale_fill_distiller(palette = 10)
+
+```
+
+

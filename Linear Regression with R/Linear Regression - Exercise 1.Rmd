@@ -1,0 +1,276 @@
+---
+title: "Linear Regression in R - Exercise 1"
+author: "Macarena L. Fernandez Carro"
+date: "2024-07-18"
+output: html_document
+---
+
+In this exercise, we are going to learn how to upload a dataset to R and run some computation to obtain the values of $\hat{B_{0}}$ and $\hat{B_{1}}$ 
+
+The Ordinary Least Squares approach finds estimates of $\hat{B_{0}}$ and $\hat{B_{1}}$ that best fit the data.
+
+The fitted equation is defined as:
+
+\begin{align*}
+y = &\hat{B_{0}} + \hat{B_{1}}x
+\end{align*}
+
+Therefore, for each observed response $y_{i}$, with a corresponding predictor value of $x_{i}$, the goal is to obtain a fitted value according to the previous formula that minimizes the sum of the squared distances of each response. 
+
+The distance is called the SSE, the error sum of squares and is defined as:
+
+\begin{align*}
+SSE = \sum_{i=1}^{n}(y_{i} - \hat{y_{i}})^2
+\end{align*}
+
+From the SSE, the values of $\S_{xx}$ and $\S_{xy}$ and $\S_{yy}$ can be derived. These values relate to the Pearson's Correlation Coeficient and are defined as follow:
+
+\begin{align*}
+S_{xx} = \sum(x - \overline{x})^2 = \sum{x^{2}} - \frac{(\sum{x})^2}{n} 
+\end{align*}
+
+\begin{align*}
+S_{xy} = \sum(x - \overline{x})(y-\overline{y}) = \sum{xy} - \frac{(\sum{x})(\sum{y})}{n} 
+\end{align*}
+
+\begin{align*}
+S_{yy} = \sum(y - \overline{y})^2 = \sum{y^{2}} - \frac{\sum{y}}{n} 
+\end{align*}
+
+These formulas gives the estimates of $B_{0}$ and $B_{1}$ as follow:
+
+\begin{align*}
+\hat{B_{1}} = \frac{\sum_{i=1}^{n}(x-\overline{x})(y - \overline{y})}{\sum_{i=1}^{n}(x-\overline{x})^{2}} = \frac{S_{xy}}{S_{xx}}
+\end{align*}
+
+\begin{align*}
+\hat{B_{0}} = \overline{y}-\hat{B}\overline{x} = \frac{\sum_{i=1}^{n}y_{i}}{n}-\hat{B_{1}}\frac{\sum_{i=1}^{n}x_{i}}{n}
+\end{align*}
+
+The SSE can then be written regardgin the above:
+
+\begin{align*}
+SSE = S_{yy}-\frac{S^{2}_{xy}}{S_{xx}}
+\end{align*}
+
+The Mean Square Error (MSE) is then the SSE divided by (n-2) since there are two estimated parameters. 
+
+\begin{align*}
+MSE = \frac{SSE}{n-2} = \frac{\sum_{i=1}^{n}(y_{i}-\hat{y_{i}})}{n-2}=\frac{S_{yy}-\frac{S^{2}_{xy}}{S_{xx}}}{n-2}
+\end{align*}
+
+The Standard Error of $B_{1}$ and $B_{0}$ can then be found with the standard error.
+
+\begin{align*}
+se(B_{1}) = \frac{\sqrt{MSE}}{\sqrt{S_{xx}}}
+\end{align*}
+
+\begin{align*}
+se(B_{0})=\frac{\sqrt{MSE}}{\sqrt{n}\sqrt{1+\frac{\overline{x^{2}}}{\sum\frac{x-\overline{x^{2}}}{n}}}}
+\end{align*}
+
+The t-values of $B_{1}$and $B_{0}$ can then be found with the standard errors:
+
+\begin{align*}
+t = \frac{B_{1}-B}{se(B_{1})}
+\end{align*}
+
+In the case of linear regression, the B that is substracted from the coefficient is set to 0.
+
+The t-value of $B_{0}$ can also be found with the same equation by replacing $B_{1}$ for $B_{0}$. With the t-values of the coefficients, the p-values can then be computed. There are $n-2$ degreesof freedom since there are two parameters in the model. The p-value is multiplied by two as it is a two-tailed test (the values can be positive and negative).
+
+```{R}
+library(tidyverse)
+data <- read.csv("Ex1data.csv", 
+                 header = TRUE,
+                 sep = ",")
+
+x <- data$x
+y <- data$y
+```
+
+```{R}
+plot(x,y)
+```
+
+## QUIZ QUESTIONS
+
+1. What is the mean of x and y?
+
+```{R}
+mean_x <- mean(x)
+mean_y <- mean(y)
+
+mean(x)
+mean(y)
+```
+
+2. Compute the value of $\S_{xx}$ and $\S_{xy}$ 
+
+```{r}
+n <- length(data)
+SXX <- 100*sum(x^2)-(sum(x))^2
+SXY <- 100*sum(x*y)-sum(x)*sum(y)
+
+print(SXX)
+print(SXY)
+```
+
+3. Find the values of $\hat{B_{0}}$ and $\hat{B_{1}}$
+
+```{R}
+B1 <- SXY/SXX
+B0 <- mean(y) - B1*mean(x)
+
+print(B0)
+print(B1)
+```
+### SUMMARY
+
+The function below collects all the equations and steps above to perform simple linear regression. There’s no practical reason to use this over the standard lm() function, however, it may provide some further understanding of how linear regression is performed in R.
+
+```{R}
+simple.linear.coef <- function(x, y) {
+  # Find length of x to get sample size. Assuming x and y have the same sample size.
+  n <- length(x)
+  # Calculate the error statistics Sxx, Syy, and Sxy
+  sxx <- sum(x^2) - sum(x)^2 / n
+  syy <- sum(y^2) - sum(y)^2 / n
+  sxy <- sum(x * y) - (sum(x) * sum(y)) / n
+  # Coefficients beta0 and beta1
+  b1 <- sxy / sxx
+  b0 <- mean(y) - b1 * mean(x)
+  # Sum of standard error and Mean Standard Error
+  sse <- syy - sxy^2 / sxx
+  mse <- sse / (n - 2)
+  # Standard error beta0 and beta1
+  b1.err <- sqrt(mse) / sqrt(sxx)
+  b0.err <- sqrt(mse) / sqrt(n) * sqrt(1 + (mean(x)^2 / (sum((x - mean(x))^2) / n)))
+  # beta0 and beta1 t-values
+  b0.t <- (b0 - 0) / b0.err
+  b1.t <- (b1 - 0) / b1.err
+  # p-values of beta0 and beta1
+  b0.p <- 2 * pt(b0.t, df = n - 2)
+  b1.p <- 2 * pt(b1.t, df = n - 2, lower.tail = FALSE)
+  # Coefficient of determination R-squared
+  r2 <- (syy - sse) /syy
+  # R-squared adjusted
+  r2.adj <- r2 - (1 - r2) * ((2 - 1) / (length(y) - 2))
+  
+  rsquare <- paste('Multiple R-squared: ', round(r2, 4), ', Adjusted R-squared: ', round(r2.adj, 4))
+  
+  coeffs <- data.frame(cbind(c(b0, b1), c(b0.err, b1.err), c(b0.t, b1.t), c(b0.p, b1.p)))
+  colnames(coeffs) <- c('Estimate', 'Std. Error', 't value', 'Pr(>|t|)')
+  rownames(coeffs) <- c('Intercept', 'x1')
+  
+  # Fit the line to the data with beta0 and beta1 found above
+  fitted <- x * b1 + b0
+  
+  # The F-Statistic
+  msr <- sum((fitted - mean(y))^2) / 1
+  mse2 <- sum((y - fitted)^2) / (length(y) - 2)
+  f <- msr / mse2
+  # p-value
+  p <- pf(f, 1, length(y) - 2, lower.tail = FALSE)
+  
+  f.stat <- paste('F-statistic: ', round(f, 2), ' on 1 and ', n - 2, ' DF, p-value: ', format(p, digits = 3, scientific = TRUE))
+  # Calculate and find summary statistics of the residuals
+  resd <- y - fitted
+  min.res <- round(min(resd), 3)
+  max.res <- round(max(resd), 3)
+  q1.q3 <- quantile(resd, probs = c(.25, .75))
+  med <- round(median(resd), 3)
+  residual <- data.frame(cbind(min.res, round(q1.q3[1], 3), med, round(q1.q3[2], 3), max.res))
+  colnames(residual) <- c('Min', 'Q1', 'Median', 'Q3', 'Max')
+  resdi <- paste('Residual standard error: ', round(sqrt(mse2), 2), ' on ', n - 2, ' degrees of freedom')
+  regres <- list('Residuals'=residual, 'Coefficients'=coeffs, resdi, rsquare, f.stat)
+  
+  return(regres)
+}
+
+simple.linear.coef(data$x, data$y)
+```
+
+# OLS INFERENCE IN R
+
+Ordinary Least Square (OLS) Regression is a type of statistical technique that is used for modelling. It is also used for the analysis of linear relationships between a response variable. If the relationship between the two variables is linear, a straight line can be drawn to model their relationship.
+
+```{R}
+data1 <- read.csv("Q6data.csv",
+                  header = TRUE,
+                  sep = ",")
+show(data1)
+x<-data1$x
+
+y<-data1$y
+
+plot(x,y)
+```
+
+Set up a regression model 
+\begin{align*}
+y = B_{0} + B_{1}x_{1} + B_{2}x_{2} + \epsilon
+\end{align*}
+
+```{R}
+regression <- lm(data1$y ~ data1$x)
+print(regression)
+
+summary(regression)
+```
+## QUIZ QUESTIONS
+
+1. Based on the simple linear regression model, which is the value of the least square estimator for $B_{0}$
+
+```{R}
+print("The intercept (B0) is -25.056...")
+print("B1 is 4.14")
+```
+
+3. Based on:
+\begin{align*}
+H_{0}:B_{0} = 0
+\end{align*}
+\begin{align*}
+H_{1}:B_{0} \neq 0
+\end{align*}
+what can we conclude?
+
+- Failed to reject the null hypothesis at $alpha$ = 0.05
+- Failed to reject the null hypothesis at $alpha$ = 0.01
+
+4. Based on:
+\begin{align*}
+H_{0}:B_{1} = 0
+\end{align*}
+\begin{align*}
+H_{1}:B_{1} \neq 0
+\end{align*}
+what can we conclude?
+
+- Reject the null hypothesis at $alpha$ = 0.05
+
+# SUMMATIVE QUIZ
+
+1. Given 7 data points $(x_{1},y_{1}),...(x_{7},y_{7})$ with $\sum{x} = 38,\sum{y}=89, \sum{x^{2}} = 270, \sum{y^{2}} = 1147, \sum{xy} = 495$ fin the values of $\hat{B_{0}}$ and $\hat{B_{1}}$.
+
+```{R}
+n = 7
+xy = 495
+sum_y = 89
+sum_x = 38
+sum_x2 = 270
+sum_y2 = 1147
+sum_xy = 495
+
+# Find SXX , SXY, SYY
+
+SXX = sum_x2 - ((sum_x)^2/n) 
+SXY = sum_xy - ((sum_x * sum_y)/n)
+SYY = sum_y2-(sum_y/n)
+
+# Find B0 and B1
+
+B1 = SXY/SXX
+
+```
